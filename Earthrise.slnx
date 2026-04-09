@@ -1,0 +1,12 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="Earthrise/Earthrise.vcxproj" Id="04211d4e-f823-4a9d-9525-c8025d6db1cd">
+    <Deploy />
+  </Project>
+  <Project Path="EarthRiseServer/EarthRiseServer.vcxproj" Id="d207bfd3-05ed-4f2b-ab70-ab36920af517" />
+  <Project Path="NeuronClient/NeuronClient.vcxproj" Id="e48d82d2-b840-4b61-94e4-29ae5c348f65" />
+  <Project Path="NeuronCore/NeuronCore.vcxproj" Id="abcfab21-83d9-46ee-999c-1c5209b8df3c" />
+  <Project Path="NeuronServer/NeuronServer.vcxproj" Id="173130de-a6f3-4e03-a963-9cde76139db5" />
+</Solution>
