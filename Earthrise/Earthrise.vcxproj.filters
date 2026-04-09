@@ -54,4 +54,13 @@
       <Filter>Project Files</Filter>
     </Natvis>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="GameApp.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="WinMain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="GameApp.h" />
+    <ClInclude Include="pch.h" />
+  </ItemGroup>
 </Project>

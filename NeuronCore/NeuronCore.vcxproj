@@ -14,6 +14,31 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="EventManager.cpp" />
+    <ClCompile Include="FileSys.cpp" />
+    <ClCompile Include="NeuronCore.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="TasksCore.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ASyncLoader.h" />
+    <ClInclude Include="DataReader.h" />
+    <ClInclude Include="DataWriter.h" />
+    <ClInclude Include="Debug.h" />
+    <ClInclude Include="Event.h" />
+    <ClInclude Include="EventManager.h" />
+    <ClInclude Include="FileSys.h" />
+    <ClInclude Include="GameMath.h" />
+    <ClInclude Include="MathCommon.h" />
+    <ClInclude Include="NeuronCore.h" />
+    <ClInclude Include="NeuronHelper.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="TasksCore.h" />
+    <ClInclude Include="TimerCore.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -53,7 +78,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
