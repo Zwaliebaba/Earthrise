@@ -1,13 +1,17 @@
 #include "pch.h"
 #include "DescriptorHeap.h"
 
-using namespace Graphics;
+using namespace Neuron::Graphics;
 
-void DescriptorAllocator::DestroyAll(void) { sm_DescriptorHeapPool.clear(); }
+void DescriptorAllocator::DestroyAll(void)
+{
+  std::scoped_lock LockGuard(sm_AllocationMutex);
+  sm_DescriptorHeapPool.clear();
+}
 
 ID3D12DescriptorHeap* DescriptorAllocator::RequestNewHeap(D3D12_DESCRIPTOR_HEAP_TYPE Type)
 {
-  std::lock_guard<std::mutex> LockGuard(sm_AllocationMutex);
+  std::scoped_lock LockGuard(sm_AllocationMutex);
 
   D3D12_DESCRIPTOR_HEAP_DESC Desc;
   Desc.Type = Type;
@@ -23,6 +27,8 @@ ID3D12DescriptorHeap* DescriptorAllocator::RequestNewHeap(D3D12_DESCRIPTOR_HEAP_
 
 D3D12_CPU_DESCRIPTOR_HANDLE DescriptorAllocator::Allocate(uint32_t Count)
 {
+  DEBUG_ASSERT(Count > 0);
+
   if (m_CurrentHeap == nullptr || m_RemainingFreeHandles < Count)
   {
     m_CurrentHeap = RequestNewHeap(m_Type);
@@ -52,11 +58,7 @@ void DescriptorHeap::Create(const std::wstring& Name, D3D12_DESCRIPTOR_HEAP_TYPE
 
   check_hresult(Core::GetD3DDevice()->CreateDescriptorHeap(&m_HeapDesc, IID_GRAPHICS_PPV_ARGS(m_Heap)));
 
-#ifdef RELEASE
-  (void)Name;
-#else
-  m_Heap->SetName(Name.c_str());
-#endif
+  SetName(m_Heap.get(), Name.c_str());
 
   m_DescriptorSize = Core::GetD3DDevice()->GetDescriptorHandleIncrementSize(m_HeapDesc.Type);
   m_NumFreeDescriptors = m_HeapDesc.NumDescriptors;
@@ -66,6 +68,7 @@ void DescriptorHeap::Create(const std::wstring& Name, D3D12_DESCRIPTOR_HEAP_TYPE
 
 DescriptorHandle DescriptorHeap::Alloc(uint32_t Count)
 {
+  DEBUG_ASSERT(Count > 0);
   DEBUG_ASSERT_TEXT(HasAvailableSpace(Count), "Descriptor Heap out of space.  Increase heap size.");
   DescriptorHandle ret = m_NextFreeHandle;
   m_NextFreeHandle += Count * m_DescriptorSize;
@@ -75,7 +78,8 @@ DescriptorHandle DescriptorHeap::Alloc(uint32_t Count)
 
 bool DescriptorHeap::ValidateHandle(const DescriptorHandle& DHandle) const
 {
-  if (DHandle.GetCpuPtr() < m_FirstHandle.GetCpuPtr() || DHandle.GetCpuPtr() >= m_FirstHandle.GetCpuPtr() + m_HeapDesc.NumDescriptors * m_DescriptorSize)
+  if (DHandle.GetCpuPtr() < m_FirstHandle.GetCpuPtr() || DHandle.GetCpuPtr() >= m_FirstHandle.GetCpuPtr() + m_HeapDesc.NumDescriptors *
+    m_DescriptorSize)
     return false;
 
   if (DHandle.GetGpuPtr() - m_FirstHandle.GetGpuPtr() != DHandle.GetCpuPtr() - m_FirstHandle.GetCpuPtr())

@@ -32,14 +32,14 @@ namespace Neuron
   }
 
   template <class... Types>
-  void __declspec(noreturn) Fatal(const std::format_string<Types...> _fmt, Types&&... _args)
+  [[noreturn]] void Fatal(const std::format_string<Types...> _fmt, Types&&... _args)
   {
     __debugbreak();
     throw std::exception("Fatal Error");
   }
 
   template <class... Types>
-  void __declspec(noreturn) Fatal(const std::wformat_string<Types...> _fmt, Types&&... _args)
+  [[noreturn]] void Fatal(const std::wformat_string<Types...> _fmt, Types&&... _args)
   {
     __debugbreak();
     throw std::exception("Fatal Error");

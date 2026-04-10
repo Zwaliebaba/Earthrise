@@ -55,7 +55,7 @@ template <class T, class EventType> class MemberFunctionHandler : public Handler
 class EventManager
 {
   public:
-  using handler_list_t = std::list<HandlerFunctionBase*>;
+  using handler_list_t = std::list<std::unique_ptr<HandlerFunctionBase>>;
 
   template <typename T_Event> static void Publish(T_Event& _evnt)
   {

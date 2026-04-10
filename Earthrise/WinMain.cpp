@@ -32,7 +32,7 @@ int WINAPI wWinMain(HINSTANCE _hInstance, HINSTANCE _hPrevInstance, LPWSTR _cmdL
     }
     else
     {
-      auto deltaT = Timer::Core::GetElapsedSeconds();
+      auto deltaT = Timer::Core::Update();
       main->Update(deltaT);
 
       Graphics::Core::Prepare();

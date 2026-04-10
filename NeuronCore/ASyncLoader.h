@@ -27,8 +27,8 @@ class ASyncLoader
       m_isValid = true;
     }
 
-    volatile std::atomic_bool m_isValid{false};
-    volatile std::atomic_bool m_isLoading{false};
+    std::atomic_bool m_isValid{false};
+    std::atomic_bool m_isLoading{false};
 };
 
 class StaticASyncLoader

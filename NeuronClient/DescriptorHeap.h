@@ -8,11 +8,11 @@ namespace Neuron::Graphics
   class DescriptorAllocator
   {
   public:
-      DescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE Type)
-        : m_Type(Type),
-          m_CurrentHeap(nullptr),
-          m_DescriptorSize(0),
-          m_RemainingFreeHandles(0) { m_CurrentHandle.ptr = D3D12_GPU_VIRTUAL_ADDRESS_UNKNOWN; }
+    DescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE Type)
+      : m_Type(Type),
+        m_CurrentHeap(nullptr),
+        m_DescriptorSize(0),
+        m_RemainingFreeHandles(0) { m_CurrentHandle.ptr = D3D12_GPU_VIRTUAL_ADDRESS_UNKNOWN; }
 
     D3D12_CPU_DESCRIPTOR_HANDLE Allocate(uint32_t Count);
 
@@ -83,15 +83,23 @@ namespace Neuron::Graphics
     DescriptorHeap(void) {}
     ~DescriptorHeap(void) { Destroy(); }
 
-    void Create(const std::wstring& DebugHeapName, D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32_t MaxCount);
-    void Destroy(void) { m_Heap = nullptr; }
+    void Create(const std::wstring& Name, D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32_t MaxCount);
+    void Destroy(void)
+    {
+      m_Heap = nullptr;
+      m_HeapDesc = {};
+      m_DescriptorSize = 0;
+      m_NumFreeDescriptors = 0;
+      m_FirstHandle = DescriptorHandle();
+      m_NextFreeHandle = DescriptorHandle();
+    }
 
     bool HasAvailableSpace(uint32_t Count) const { return Count <= m_NumFreeDescriptors; }
     DescriptorHandle Alloc(uint32_t Count = 1);
 
     DescriptorHandle operator[] (uint32_t arrayIdx) const { return m_FirstHandle + arrayIdx * m_DescriptorSize; }
 
-    uint32_t GetOffsetOfHandle(const DescriptorHandle& DHandle)
+    uint32_t GetOffsetOfHandle(const DescriptorHandle& DHandle) const
     {
       return (uint32_t)(DHandle.GetCpuPtr() - m_FirstHandle.GetCpuPtr()) / m_DescriptorSize;
     }
@@ -105,9 +113,9 @@ namespace Neuron::Graphics
   private:
 
     com_ptr<ID3D12DescriptorHeap> m_Heap;
-    D3D12_DESCRIPTOR_HEAP_DESC m_HeapDesc;
-    uint32_t m_DescriptorSize;
-    uint32_t m_NumFreeDescriptors;
+    D3D12_DESCRIPTOR_HEAP_DESC m_HeapDesc{};
+    uint32_t m_DescriptorSize{};
+    uint32_t m_NumFreeDescriptors{};
     DescriptorHandle m_FirstHandle;
     DescriptorHandle m_NextFreeHandle;
   };

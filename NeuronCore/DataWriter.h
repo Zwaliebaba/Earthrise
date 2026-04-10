@@ -9,6 +9,16 @@ namespace Neuron
   public:
     DataWriter() = default;
 
+    // Generic write for any trivially copyable type
+    template <typename T>
+    void Write(const T _value)
+    {
+      static_assert(std::is_trivially_copyable_v<T>, "Type is not writable");
+      ASSERT_TEXT(m_size + sizeof(T) <= DATALOAD_SIZE, "Write out of bounds");
+      std::memcpy(m_data.data() + m_size, &_value, sizeof(T));
+      m_size += sizeof(T);
+    }
+
     // Write a single byte
     void WriteChar(const char _value)
     {

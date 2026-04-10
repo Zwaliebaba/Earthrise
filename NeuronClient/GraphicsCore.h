@@ -29,7 +29,7 @@ namespace Neuron::Graphics
 
     static void CreateDeviceResources();
     static void CreateWindowSizeDependentResources();
-    static void SetWindow(HWND window, int width, int height) noexcept;
+    static void SetWindow(HWND window, int width, int height);
     static bool WindowSizeChanged(int width, int height);
     static void HandleDeviceLost();
     static void RegisterDeviceNotify(IDeviceNotify* deviceNotify) noexcept { m_deviceNotify = deviceNotify; }
@@ -76,7 +76,7 @@ namespace Neuron::Graphics
 
   private:
     static void MoveToNextFrame();
-    static void GetAdapter(IDXGIAdapter1** ppAdapter);
+    static com_ptr<IDXGIAdapter1> GetAdapter();
 
     static constexpr size_t MAX_BACK_BUFFER_COUNT = 3;
 

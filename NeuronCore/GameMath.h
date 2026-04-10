@@ -1,7 +1,13 @@
 #pragma once
 
+#pragma warning(push)
+#pragma warning(disable:4201) // nonstandard extension used : nameless struct/union
+#pragma warning(disable:4238) // nonstandard extension used : class rvalue used as lvalue
+#pragma warning(disable:4324) // structure was padded due to __declspec(align())
 #include <DirectXCollision.h>
 #include <DirectXMath.h>
+#pragma warning(pop)
+
 #include "MathCommon.h"
 
 using namespace DirectX;

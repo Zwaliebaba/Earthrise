@@ -1,15 +1,10 @@
 #pragma once
 
-#define _CRT_SECURE_NO_WARNINGS  // TODO [CI §1.7]: Remove after §1.1 (unsafe string elimination) is complete
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #if defined (_DEBUG) 
 #define PROFILER_ENABLED
 #endif
-
-#pragma warning(disable:4201) // nonstandard extension used : nameless struct/union
-#pragma warning(disable:4238) // nonstandard extension used : class rvalue used as lvalue
-#pragma warning(disable:4324) // structure was padded due to __declspec(align())
 
 #include <algorithm>
 #include <array>

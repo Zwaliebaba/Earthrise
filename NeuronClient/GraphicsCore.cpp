@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "GraphicsCore.h"
 
-using namespace DirectX;
 using namespace Neuron::Graphics;
 
 namespace
@@ -24,15 +23,15 @@ namespace
 
 void Core::Startup(DXGI_FORMAT backBufferFormat, DXGI_FORMAT depthBufferFormat, UINT backBufferCount, D3D_FEATURE_LEVEL minFeatureLevel, unsigned flags) noexcept(false)
 {
+  if (backBufferCount < 2 || backBufferCount > MAX_BACK_BUFFER_COUNT) { throw std::out_of_range("invalid backBufferCount"); }
+
+  if (minFeatureLevel < D3D_FEATURE_LEVEL_11_0) { throw std::out_of_range("minFeatureLevel too low"); }
+
   m_backBufferFormat = backBufferFormat;
   m_depthBufferFormat = depthBufferFormat;
   m_backBufferCount = backBufferCount;
   m_d3dMinFeatureLevel = minFeatureLevel;
   m_options = flags;
-
-  if (backBufferCount < 2 || backBufferCount > MAX_BACK_BUFFER_COUNT) { throw std::out_of_range("invalid backBufferCount"); }
-
-  if (minFeatureLevel < D3D_FEATURE_LEVEL_11_0) { throw std::out_of_range("minFeatureLevel too low"); }
 
   CreateDeviceResources();
 }
@@ -66,111 +65,111 @@ void Core::CreateDeviceResources()
   }
 #endif
 
-check_hresult(CreateDXGIFactory2(m_dxgiFactoryFlags, IID_GRAPHICS_PPV_ARGS(m_dxgiFactory)));
+  check_hresult(CreateDXGIFactory2(m_dxgiFactoryFlags, IID_GRAPHICS_PPV_ARGS(m_dxgiFactory)));
 
-// Determines whether tearing support is available for fullscreen borderless windows.
-if (m_options & c_AllowTearing)
-{
-  BOOL allowTearing = FALSE;
-  HRESULT hr = m_dxgiFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing));
-  if (FAILED(hr) || !allowTearing)
+  // Determines whether tearing support is available for fullscreen borderless windows.
+  if (m_options & c_AllowTearing)
   {
-    m_options &= ~c_AllowTearing;
+    BOOL allowTearing = FALSE;
+    HRESULT hr = m_dxgiFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing));
+    if (FAILED(hr) || !allowTearing)
+    {
+      m_options &= ~c_AllowTearing;
 #ifdef _DEBUG
-    OutputDebugStringA("WARNING: Variable refresh rate displays not supported");
+      OutputDebugStringA("WARNING: Variable refresh rate displays not supported");
 #endif
+    }
   }
-}
 
-com_ptr<IDXGIAdapter1> adapter;
-GetAdapter(adapter.put());
+  com_ptr<IDXGIAdapter1> adapter = GetAdapter();
 
-// Create the DX12 API device object.
-HRESULT hr = D3D12CreateDevice(adapter.get(), m_d3dMinFeatureLevel, IID_GRAPHICS_PPV_ARGS(m_d3dDevice));
-check_hresult(hr);
+  // Create the DX12 API device object.
+  HRESULT hr = D3D12CreateDevice(adapter.get(), m_d3dMinFeatureLevel, IID_GRAPHICS_PPV_ARGS(m_d3dDevice));
+  check_hresult(hr);
 
-m_d3dDevice->SetName(L"Core");
+  m_d3dDevice->SetName(L"Core");
 
 #ifndef NDEBUG
-// Configure debug device (if active).
-com_ptr<ID3D12InfoQueue> d3dInfoQueue;
-m_d3dDevice.as(d3dInfoQueue);
-
+  // Configure debug device (if active).
+  com_ptr<ID3D12InfoQueue> d3dInfoQueue;
+  if (m_d3dDevice.try_as(d3dInfoQueue))
+  {
 #ifdef _DEBUG
-d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
-d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
+    d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
+    d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
 #endif
-D3D12_MESSAGE_ID hide[] = { D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE, D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE, D3D12_MESSAGE_ID_EXECUTECOMMANDLISTS_WRONGSWAPCHAINBUFFERREFERENCE };
-D3D12_INFO_QUEUE_FILTER filter = {};
-filter.DenyList.NumIDs = static_cast<UINT>(std::size(hide));
-filter.DenyList.pIDList = hide;
-d3dInfoQueue->AddStorageFilterEntries(&filter);
+    D3D12_MESSAGE_ID hide[] = { D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE, D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE, D3D12_MESSAGE_ID_EXECUTECOMMANDLISTS_WRONGSWAPCHAINBUFFERREFERENCE };
+    D3D12_INFO_QUEUE_FILTER filter = {};
+    filter.DenyList.NumIDs = static_cast<UINT>(std::size(hide));
+    filter.DenyList.pIDList = hide;
+    d3dInfoQueue->AddStorageFilterEntries(&filter);
+  }
 #endif
 
-// Determine maximum supported feature level for this device
-static const D3D_FEATURE_LEVEL s_featureLevels[] = { D3D_FEATURE_LEVEL_12_1, D3D_FEATURE_LEVEL_12_0, D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, };
+  // Determine maximum supported feature level for this device
+  static const D3D_FEATURE_LEVEL s_featureLevels[] = { D3D_FEATURE_LEVEL_12_1, D3D_FEATURE_LEVEL_12_0, D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, };
 
-D3D12_FEATURE_DATA_FEATURE_LEVELS featLevels = { static_cast<UINT>(std::size(s_featureLevels)), s_featureLevels, D3D_FEATURE_LEVEL_11_0 };
+  D3D12_FEATURE_DATA_FEATURE_LEVELS featLevels = { static_cast<UINT>(std::size(s_featureLevels)), s_featureLevels, D3D_FEATURE_LEVEL_11_0 };
 
-hr = m_d3dDevice->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &featLevels, sizeof(featLevels));
-if (SUCCEEDED(hr)) { m_d3dFeatureLevel = featLevels.MaxSupportedFeatureLevel; }
-else { m_d3dFeatureLevel = m_d3dMinFeatureLevel; }
+  hr = m_d3dDevice->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &featLevels, sizeof(featLevels));
+  if (SUCCEEDED(hr)) { m_d3dFeatureLevel = featLevels.MaxSupportedFeatureLevel; }
+  else { m_d3dFeatureLevel = m_d3dMinFeatureLevel; }
 
-// Create the command queue.
-D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+  // Create the command queue.
+  D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+  queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+  queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-check_hresult(m_d3dDevice->CreateCommandQueue(&queueDesc, IID_GRAPHICS_PPV_ARGS(m_commandQueue)));
+  check_hresult(m_d3dDevice->CreateCommandQueue(&queueDesc, IID_GRAPHICS_PPV_ARGS(m_commandQueue)));
 
-m_commandQueue->SetName(L"Core");
+  m_commandQueue->SetName(L"Core");
 
-// Create descriptor heaps for render target views and depth stencil views.
-D3D12_DESCRIPTOR_HEAP_DESC rtvDescriptorHeapDesc = {};
-rtvDescriptorHeapDesc.NumDescriptors = m_backBufferCount;
-rtvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+  // Create descriptor heaps for render target views and depth stencil views.
+  D3D12_DESCRIPTOR_HEAP_DESC rtvDescriptorHeapDesc = {};
+  rtvDescriptorHeapDesc.NumDescriptors = m_backBufferCount;
+  rtvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
-check_hresult(m_d3dDevice->CreateDescriptorHeap(&rtvDescriptorHeapDesc, IID_GRAPHICS_PPV_ARGS(m_rtvDescriptorHeap)));
+  check_hresult(m_d3dDevice->CreateDescriptorHeap(&rtvDescriptorHeapDesc, IID_GRAPHICS_PPV_ARGS(m_rtvDescriptorHeap)));
 
-m_rtvDescriptorHeap->SetName(L"Core");
+  m_rtvDescriptorHeap->SetName(L"Core");
 
-m_rtvDescriptorSize = m_d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+  m_rtvDescriptorSize = m_d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-if (m_depthBufferFormat != DXGI_FORMAT_UNKNOWN)
-{
-  D3D12_DESCRIPTOR_HEAP_DESC dsvDescriptorHeapDesc = {};
-  dsvDescriptorHeapDesc.NumDescriptors = 1;
-  dsvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+  if (m_depthBufferFormat != DXGI_FORMAT_UNKNOWN)
+  {
+    D3D12_DESCRIPTOR_HEAP_DESC dsvDescriptorHeapDesc = {};
+    dsvDescriptorHeapDesc.NumDescriptors = 1;
+    dsvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 
-  check_hresult(m_d3dDevice->CreateDescriptorHeap(&dsvDescriptorHeapDesc, IID_GRAPHICS_PPV_ARGS(m_dsvDescriptorHeap)));
+    check_hresult(m_d3dDevice->CreateDescriptorHeap(&dsvDescriptorHeapDesc, IID_GRAPHICS_PPV_ARGS(m_dsvDescriptorHeap)));
 
-  m_dsvDescriptorHeap->SetName(L"Core");
-}
+    m_dsvDescriptorHeap->SetName(L"Core");
+  }
 
-// Create a command allocator for each back buffer that will be rendered to.
-for (UINT n = 0; n < m_backBufferCount; n++)
-{
-  check_hresult(m_d3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_GRAPHICS_PPV_ARGS(m_commandAllocators[n])));
+  // Create a command allocator for each back buffer that will be rendered to.
+  for (UINT n = 0; n < m_backBufferCount; n++)
+  {
+    check_hresult(m_d3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_GRAPHICS_PPV_ARGS(m_commandAllocators[n])));
 
-  wchar_t name[25] = {};
-  swprintf_s(name, L"Render target %u", n);
-  m_commandAllocators[n]->SetName(name);
-}
+    wchar_t name[25] = {};
+    swprintf_s(name, L"Command allocator %u", n);
+    m_commandAllocators[n]->SetName(name);
+  }
 
-// Create a command list for recording graphics commands.
-check_hresult(m_d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[0].get(), nullptr, IID_GRAPHICS_PPV_ARGS(m_commandList)));
-check_hresult(m_commandList->Close());
+  // Create a command list for recording graphics commands.
+  check_hresult(m_d3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[0].get(), nullptr, IID_GRAPHICS_PPV_ARGS(m_commandList)));
+  check_hresult(m_commandList->Close());
 
-m_commandList->SetName(L"Core");
+  m_commandList->SetName(L"Core");
 
-// Create a fence for tracking GPU execution progress.
-check_hresult(m_d3dDevice->CreateFence(m_fenceValues[m_backBufferIndex], D3D12_FENCE_FLAG_NONE, IID_GRAPHICS_PPV_ARGS(m_fence)));
-m_fenceValues[m_backBufferIndex]++;
+  // Create a fence for tracking GPU execution progress.
+  check_hresult(m_d3dDevice->CreateFence(m_fenceValues[m_backBufferIndex], D3D12_FENCE_FLAG_NONE, IID_GRAPHICS_PPV_ARGS(m_fence)));
+  m_fenceValues[m_backBufferIndex]++;
 
-m_fence->SetName(L"Core");
+  m_fence->SetName(L"Core");
 
-m_fenceEvent.attach(CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE));
-check_bool(static_cast<bool>(m_fenceEvent));
+  m_fenceEvent.attach(CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE));
+  check_bool(static_cast<bool>(m_fenceEvent));
 }
 
 // These resources need to be recreated every time the window size is changed.
@@ -309,7 +308,7 @@ void Core::CreateWindowSizeDependentResources()
 }
 
 // This method is called when the Win32 window is created (or re-created).
-void Core::SetWindow(HWND window, int width, int height) noexcept
+void Core::SetWindow(HWND window, int width, int height)
 {
   m_window = window;
   WindowSizeChanged(width, height);
@@ -359,7 +358,7 @@ void Core::HandleDeviceLost()
 #ifdef _DEBUG
   {
     com_ptr<IDXGIDebug1> dxgiDebug;
-    if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug))))
+    if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_GRAPHICS_PPV_ARGS(dxgiDebug))))
     {
       dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, static_cast<DXGI_DEBUG_RLO_FLAGS>(DXGI_DEBUG_RLO_SUMMARY | DXGI_DEBUG_RLO_IGNORE_INTERNAL));
     }
@@ -486,10 +485,8 @@ void Core::MoveToNextFrame()
 
 // This method acquires the first available hardware adapter that supports Direct3D 12.
 // If no such adapter can be found, try WARP. Otherwise throw an exception.
-void Core::GetAdapter(IDXGIAdapter1** ppAdapter)
+com_ptr<IDXGIAdapter1> Core::GetAdapter()
 {
-  *ppAdapter = nullptr;
-
   com_ptr<IDXGIAdapter1> adapter;
   for (UINT adapterIndex = 0; SUCCEEDED(m_dxgiFactory->EnumAdapterByGpuPreference(adapterIndex, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_GRAPHICS_PPV_ARGS(adapter)));
     adapterIndex++)
@@ -530,7 +527,7 @@ void Core::GetAdapter(IDXGIAdapter1** ppAdapter)
 
   if (!adapter) { throw std::runtime_error("No Direct3D 12 device found"); }
 
-  *ppAdapter = adapter.detach();
+  return adapter;
 }
 
 // Sets the color space for the swap chain in order to handle HDR output.
@@ -580,9 +577,12 @@ void Core::UpdateColorSpace()
 
   m_colorSpace = colorSpace;
 
-  UINT colorSpaceSupport = 0;
-  if (SUCCEEDED(m_swapChain->CheckColorSpaceSupport(colorSpace, &colorSpaceSupport)) && (colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT))
+  if (m_swapChain)
   {
-    check_hresult(m_swapChain->SetColorSpace1(colorSpace));
+    UINT colorSpaceSupport = 0;
+    if (SUCCEEDED(m_swapChain->CheckColorSpaceSupport(colorSpace, &colorSpaceSupport)) && (colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT))
+    {
+      check_hresult(m_swapChain->SetColorSpace1(colorSpace));
+    }
   }
 }
