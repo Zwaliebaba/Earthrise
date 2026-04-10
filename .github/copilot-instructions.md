@@ -116,3 +116,4 @@ When context files don't provide specific guidance:
 - Rendering: `ImRenderer` is legacy and should not be extended. New textured-quad rendering should target `SpriteBatch`.
 - Game object renderer companions (EntityRenderer, BuildingRenderer, and their registries/implementations like ArmyAntRenderer, TreeBuildingRenderer, ShadowRenderer) should be placed in the GameRender project, not NeuronClient.
 - Build and verify after changes using the existing solution and configurations.
+- Do not split NeuronCore headers. The server is allowed to use WinRT APIs. NeuronServer.h should include NeuronCore.h directly. Do not create NeuronCoreBase.h or guard WinRT features with NEURON_HAS_WINRT.

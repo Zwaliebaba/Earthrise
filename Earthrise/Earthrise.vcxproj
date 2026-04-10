@@ -85,12 +85,13 @@
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;$(SolutionDir)GameRender;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;$(SolutionDir)GameRender;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -346,6 +347,9 @@
     </ProjectReference>
     <ProjectReference Include="..\NeuronCore\NeuronCore.vcxproj">
       <Project>{abcfab21-83d9-46ee-999c-1c5209b8df3c}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\GameRender\GameRender.vcxproj">
+      <Project>{a2b3c4d5-e6f7-8901-bcde-f23456789012}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

@@ -90,6 +90,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>$(SolutionDir)NeuronCore</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>

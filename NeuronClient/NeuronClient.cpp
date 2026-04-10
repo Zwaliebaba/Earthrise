@@ -4,7 +4,7 @@
 
 namespace
 {
-  float windowWidthAdd, windowHeightAdd;
+  int windowWidthAdd, windowHeightAdd;
   constexpr bool SHOW_BORDER = true;
 }
 
@@ -27,7 +27,11 @@ void ClientEngine::Startup(const wchar_t* _gameName, Windows::Foundation::Size _
   wcex.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
   ASSERT(RegisterClassEx(&wcex));
 
-  Graphics::Core::Startup();
+  // Enable variable-refresh-rate / tearing support when the display supports it.
+  // If the hardware doesn't support tearing, the flag is silently cleared during
+  // device creation and Present() falls back to VSync (syncInterval = 1).
+  Graphics::Core::Startup(DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_D32_FLOAT, 2,
+                           D3D_FEATURE_LEVEL_11_0, Graphics::Core::c_AllowTearing);
 
   // Create window
   DWORD style;
@@ -35,8 +39,8 @@ void ClientEngine::Startup(const wchar_t* _gameName, Windows::Foundation::Size _
   if constexpr (SHOW_BORDER)
   {
     style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_EX_TOPMOST; 
-    windowWidthAdd = GetSystemMetrics(SM_CXSIZEFRAME) * 2.0f;
-    windowHeightAdd = GetSystemMetrics(SM_CYCAPTION) + GetSystemMetrics(SM_CYSIZEFRAME) * 2.0f;
+    windowWidthAdd = GetSystemMetrics(SM_CXSIZEFRAME) * 2;
+    windowHeightAdd = GetSystemMetrics(SM_CYCAPTION) + GetSystemMetrics(SM_CYSIZEFRAME) * 2;
   }
   else
   {
@@ -45,8 +49,8 @@ void ClientEngine::Startup(const wchar_t* _gameName, Windows::Foundation::Size _
     windowHeightAdd = 0;
   }
 
-  const int windowWidth = _size.Width + windowWidthAdd;
-  const int windowHeight = _size.Height + windowHeightAdd;
+  const int windowWidth = static_cast<int>(_size.Width) + windowWidthAdd;
+  const int windowHeight = static_cast<int>(_size.Height) + windowHeightAdd;
 
   m_hwnd = CreateWindowEx(0, L"Neuron", _gameName, style, CW_USEDEFAULT, CW_USEDEFAULT, windowWidth,
     windowHeight, nullptr, nullptr, m_instance, nullptr);
@@ -97,7 +101,7 @@ Windows::Foundation::Point ClientEngine::OutputTopLeft()
   GetWindowRect(m_hwnd, &rc);
 
   // This is the top left of the window, not the client area, dont know why I have to add 3 (or 1 on my X64)
-  return { rc.left + windowWidthAdd, rc.top + windowHeightAdd };
+  return { static_cast<float>(rc.left + windowWidthAdd), static_cast<float>(rc.top + windowHeightAdd) };
 }
 
 LRESULT CALLBACK WndProc(const HWND _hWnd, const UINT _message, WPARAM _wParam, const LPARAM _lParam)
@@ -233,7 +237,7 @@ LRESULT CALLBACK WndProc(const HWND _hWnd, const UINT _message, WPARAM _wParam, 
         ShowWindow(_hWnd, SW_SHOWNORMAL);
 
         const auto outputSize = ClientEngine::OutputSize();
-        SetWindowPos(_hWnd, HWND_TOP, 0, 0, outputSize.Width, outputSize.Height,
+        SetWindowPos(_hWnd, HWND_TOP, 0, 0, static_cast<int>(outputSize.Width), static_cast<int>(outputSize.Height),
           SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED);
       }
       else

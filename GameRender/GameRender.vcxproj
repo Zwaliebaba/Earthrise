@@ -24,44 +24,31 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\NeuronClient\NeuronClient.vcxproj">
+      <Project>{e48d82d2-b840-4b61-94e4-29ae5c348f65}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\NeuronCore\NeuronCore.vcxproj">
+      <Project>{abcfab21-83d9-46ee-999c-1c5209b8df3c}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AudioEngine.cpp" />
-    <ClCompile Include="DescriptorHeap.cpp" />
-    <ClCompile Include="GraphicsCore.cpp" />
-    <ClCompile Include="NeuronClient.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="SoundCommon.cpp" />
-    <ClCompile Include="SoundEffect.cpp" />
-    <ClCompile Include="SoundEffectInstance.cpp" />
-    <ClCompile Include="WAVFileReader.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Audio.h" />
-    <ClInclude Include="AudioDefs.h" />
-    <ClInclude Include="AudioEngine.h" />
-    <ClInclude Include="Color.h" />
-    <ClInclude Include="d3dx12.h" />
-    <ClInclude Include="DescriptorHeap.h" />
-    <ClInclude Include="DeviceNotify.h" />
-    <ClInclude Include="DirectXHelper.h" />
-    <ClInclude Include="GameMain.h" />
-    <ClInclude Include="GraphicsCore.h" />
-    <ClInclude Include="NeuronClient.h" />
+    <ClInclude Include="GameRender.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="PixProfiler.h" />
-    <ClInclude Include="SoundCommon.h" />
-    <ClInclude Include="WAVFileReader.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{e48d82d2-b840-4b61-94e4-29ae5c348f65}</ProjectGuid>
-    <RootNamespace>NeuronClient</RootNamespace>
+    <ProjectGuid>{a2b3c4d5-e6f7-8901-bcde-f23456789012}</ProjectGuid>
+    <RootNamespace>GameRender</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -99,7 +86,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -118,7 +105,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>

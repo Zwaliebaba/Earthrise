@@ -9,4 +9,10 @@
   <Project Path="NeuronClient/NeuronClient.vcxproj" Id="e48d82d2-b840-4b61-94e4-29ae5c348f65" />
   <Project Path="NeuronCore/NeuronCore.vcxproj" Id="abcfab21-83d9-46ee-999c-1c5209b8df3c" />
   <Project Path="NeuronServer/NeuronServer.vcxproj" Id="173130de-a6f3-4e03-a963-9cde76139db5" />
+  <Project Path="GameRender/GameRender.vcxproj" Id="a2b3c4d5-e6f7-8901-bcde-f23456789012" />
+  <Project Path="GameLogic/GameLogic.vcxproj" Id="b1a2c3d4-e5f6-7890-abcd-ef1234567890" />
+  <Project Path="EarthRiseTests/EarthRiseTests.vcxproj" Id="c3d4e5f6-a7b8-9012-cdef-345678901234">
+    <Configuration Solution="Debug|x64" Project="Debug|x64" />
+    <Configuration Solution="Release|x64" Project="Release|x64" />
+  </Project>
 </Solution>

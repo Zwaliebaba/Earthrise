@@ -22,6 +22,10 @@
     <ClInclude Include="TimerCore.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="NeuronCore.h" />
+    <ClInclude Include="NetLib.h" />
+    <ClInclude Include="GameTypes\EntityHandle.h" />
+    <ClInclude Include="GameTypes\SpaceObjectCategory.h" />
+    <ClInclude Include="SerializationBase.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Project Files">
