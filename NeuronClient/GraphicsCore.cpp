@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "GraphicsCore.h"
+#include "PixProfiler.h"
 
 using namespace Neuron::Graphics;
 
@@ -39,6 +40,7 @@ void Core::Startup(DXGI_FORMAT backBufferFormat, DXGI_FORMAT depthBufferFormat, 
 // Configures the Direct3D device, and stores handles to it and the device context.
 void Core::CreateDeviceResources()
 {
+  PROFILE_FUNCTION();
 #if defined(_DEBUG)
   // Enable the debug layer (requires the Graphics Tools "optional feature").
   //
@@ -374,6 +376,8 @@ void Core::HandleDeviceLost()
 // Prepare the command list and render target for rendering.
 void Core::Prepare(D3D12_RESOURCE_STATES beforeState, D3D12_RESOURCE_STATES afterState)
 {
+  PROFILE_FUNCTION();
+
   // Reset command list and allocator.
   check_hresult(m_commandAllocators[m_backBufferIndex]->Reset());
   check_hresult(m_commandList->Reset(m_commandAllocators[m_backBufferIndex].get(), nullptr));
@@ -389,6 +393,8 @@ void Core::Prepare(D3D12_RESOURCE_STATES beforeState, D3D12_RESOURCE_STATES afte
 // Present the contents of the swap chain to the screen.
 void Core::Present(D3D12_RESOURCE_STATES beforeState)
 {
+  PROFILE_FUNCTION();
+
   if (beforeState != D3D12_RESOURCE_STATE_PRESENT)
   {
     // Transition the render target to the state that allows it to be presented to the display.
@@ -444,6 +450,8 @@ void Core::Present(D3D12_RESOURCE_STATES beforeState)
 // Wait for pending GPU work to complete.
 void Core::WaitForGpu() noexcept
 {
+  PROFILE_FUNCTION();
+
   if (m_commandQueue && m_fence)
   {
     // Schedule a Signal command in the GPU queue.
