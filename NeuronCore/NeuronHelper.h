@@ -4,6 +4,9 @@
 
 namespace Neuron
 {
+// Sequential enum helper: provides ++, --, dereference, SizeOf, Iterator, and Range.
+// Use for enums whose values are sequential indices (e.g., SpaceObjectCategory).
+// Does NOT provide bitwise operators — use ENUM_FLAGS_HELPER for flag enums.
 #define ENUM_HELPER(T, S, E)                                                                                                                         \
    T inline operator ++(T& _value) noexcept { return _value = static_cast<T>(static_cast<std::underlying_type_t<T>>(_value) + 1); }                  \
    T inline operator ++(T& _value, int) noexcept { return _value = static_cast<T>(static_cast<std::underlying_type_t<T>>(_value) + 1); }             \
@@ -24,7 +27,15 @@ namespace Neuron
      public:                                                                                                                                         \
       It##T begin() const { return It##T(static_cast<std::underlying_type_t<T>>(T::S)); }                                                 \
       It##T end() const { return It##T(static_cast<std::underlying_type_t<T>>(T::E) + 1); }                                                \
-   };                                                                                                                                                \
+   };
+  //template <> struct std::formatter<T> : std::formatter<int> {                                                                                     \
+  //  auto format(const T& id, std::format_context& ctx) const {return std::formatter<int>::format(static_cast<int>(id), ctx); }                     \
+  //}
+
+// Flags enum helper: provides bitwise operators (|, &, ^, ~, !) for enums used as bit flags.
+// Also includes sequential helpers from ENUM_HELPER.
+#define ENUM_FLAGS_HELPER(T, S, E)                                                                                                                   \
+   ENUM_HELPER(T, S, E)                                                                                                                              \
    constexpr T operator | (T a, T b) noexcept { return T(((_ENUM_FLAG_SIZED_INTEGER<T>::type)a) | ((_ENUM_FLAG_SIZED_INTEGER<T>::type)b)); }         \
    inline T &operator |= (T &a, T b) noexcept { return (T &)(((_ENUM_FLAG_SIZED_INTEGER<T>::type &)a) |= ((_ENUM_FLAG_SIZED_INTEGER<T>::type)b)); }  \
    constexpr T operator & (T a, T b) noexcept { return T(((_ENUM_FLAG_SIZED_INTEGER<T>::type)a) & ((_ENUM_FLAG_SIZED_INTEGER<T>::type)b)); }         \
@@ -33,9 +44,6 @@ namespace Neuron
    constexpr T operator ^ (T a, T b) noexcept { return T(((_ENUM_FLAG_SIZED_INTEGER<T>::type)a) ^ ((_ENUM_FLAG_SIZED_INTEGER<T>::type)b)); }         \
    inline T &operator ^= (T &a, T b) noexcept { return (T &)(((_ENUM_FLAG_SIZED_INTEGER<T>::type &)a) ^= ((_ENUM_FLAG_SIZED_INTEGER<T>::type)b)); }  \
    constexpr bool operator ! (T a) noexcept { return !((_ENUM_FLAG_SIZED_INTEGER<T>::type)a); }
-  //template <> struct std::formatter<T> : std::formatter<int> {                                                                                     \
-  //  auto format(const T& id, std::format_context& ctx) const {return std::formatter<int>::format(static_cast<int>(id), ctx); }                     \
-  //}
 
   template <typename T>
   constexpr bool IsValidEnum(T _value) noexcept { return (_value >= begin(_value) && _value < end(_value)); }

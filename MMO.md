@@ -1,0 +1,777 @@
+# Earthrise — MMO Space Game: High-Level Implementation Plan
+
+## Table of Contents
+
+- [1. Current State Analysis](#1-current-state-analysis)
+- [2. Open Questions](#2-open-questions)
+- [3. Target Architecture](#3-target-architecture)
+- [4. Visual Style — Eighties / Darwinia Aesthetic](#4-visual-style--eighties--darwinia-aesthetic)
+- [5. Space Object Taxonomy](#5-space-object-taxonomy)
+- [6. Phase Breakdown](#6-phase-breakdown)
+  - [Phase 1 — Foundation & Shared Core](#phase-1--foundation--shared-core)
+  - [Phase 2 — Entity System & Space Object Data Model](#phase-2--entity-system--space-object-data-model)
+  - [Phase 3 — CMO Asset Pipeline & Flat-Color Rendering](#phase-3--cmo-asset-pipeline--flat-color-rendering)
+  - [Phase 4 — Networking Layer](#phase-4--networking-layer)
+  - [Phase 5 — Server Simulation Loop](#phase-5--server-simulation-loop)
+  - [Phase 6 — Client Game Loop & World Sync](#phase-6--client-game-loop--world-sync)
+  - [Phase 7 — Gameplay Systems](#phase-7--gameplay-systems)
+  - [Phase 8 — HUD, UI & Player Interaction](#phase-8--hud-ui--player-interaction)
+  - [Phase 9 — Audio & Effects](#phase-9--audio--effects)
+  - [Phase 10 — Azure Kubernetes Deployment](#phase-10--azure-kubernetes-deployment)
+  - [Phase 11 — Polish, Optimization & Ship Readiness](#phase-11--polish-optimization--ship-readiness)
+- [7. Testing Strategy](#7-testing-strategy)
+- [8. Risk Register](#8-risk-register)
+- [9. Conventions & Standards](#9-conventions--standards)
+
+---
+
+## 1. Current State Analysis
+
+### Solution Structure (`Earthrise.slnx`)
+
+| Project | Type | Role | Dependencies |
+|---|---|---|---|
+| **NeuronCore** | Static lib | Engine foundation: math, timers, events, file I/O, async, debug, data reader/writer, tasks/threads | — |
+| **NeuronServer** | Static lib | Server-side engine layer (stub — contains only `pch.h` → `NeuronServer.h` → `NeuronCore.h`) | NeuronCore |
+| **NeuronClient** | Static lib | Client engine: DirectX 12 graphics core, descriptor heaps, audio engine, sound effects, PIX profiling | NeuronCore |
+| **Earthrise** | Application (MSIX-packaged WinUI desktop) | Client executable: `GameApp` (extends `GameMain`), main loop, windowing | NeuronClient, NeuronCore |
+| **EarthRiseServer** | Console application | Server executable (empty `main()`) | NeuronServer, NeuronCore |
+
+### What Already Exists (Boilerplate to Reuse)
+
+| Subsystem | Status | Key Files |
+|---|---|---|
+| Math (DirectXMath wrapper) | ✅ Ready | `GameMath.h`, `MathCommon.h` — `Neuron::Math` namespace with SIMD helpers, vector constants |
+| Timer | ✅ Ready | `TimerCore.h` — variable timestep, QPC-based, frame counting |
+| Event System | ✅ Ready | `Event.h`, `EventManager.h/.cpp` — type-safe publish/subscribe, WndProc dispatch, `EventSubscriber` base class |
+| File I/O | ✅ Ready | `FileSys.h/.cpp` — binary & text file reading, home directory management |
+| Debug / Assert | ✅ Ready | `Debug.h` — `DebugTrace`, `Fatal`, `ASSERT`, `DEBUG_ASSERT` |
+| Helpers | ✅ Ready | `NeuronHelper.h` — `ENUM_HELPER` macro, `NonCopyable`, `ScopedHandle`, enum utilities |
+| Async Loader | ✅ Ready | `ASyncLoader.h` — atomic loading state tracking (instance & static variants) |
+| Tasks / Threads | ✅ Ready | `TasksCore.h/.cpp` — `Neuron::Tasks::Thread` (start/stop/wait/bind), periodic timer helpers |
+| Data Serialization | ⚠️ Partial | `DataReader.h`, `DataWriter.h` — depend on `NetLib.h` which **does not exist** yet; needs `DATALOAD_SIZE` constant |
+| DirectX 12 Core | ✅ Ready | `GraphicsCore.h/.cpp` — device, swap chain, command list, fence, descriptor allocators |
+| Descriptor Heaps | ✅ Ready | `DescriptorHeap.h/.cpp` — CPU-visible unbounded allocator, shader-visible heap handles |
+| DirectX Helpers | ✅ Ready | `DirectXHelper.h` — `IID_GRAPHICS_PPV_ARGS`, `d3dx12.h`, PIX naming |
+| Color Library | ✅ Ready | `Color.h` — full named-color constant table (`XMVECTORF32`) |
+| Audio Engine | ✅ Ready | `AudioEngine.h/.cpp`, `SoundEffect`, `SoundEffectInstance`, `WAVFileReader` — XAudio2-based |
+| PIX Profiler | ✅ Ready | `PixProfiler.h` — CPU & GPU `ProfileScope` RAII guards |
+| GameMain Base Class | ✅ Ready | `GameMain.h` — abstract `Startup/Shutdown/Update/RenderScene/RenderCanvas` lifecycle |
+| Client Engine | ✅ Ready | `NeuronClient.h/.cpp` — window creation, device init, main loop hookup |
+| Client App Shell | ✅ Ready | `GameApp.h/.cpp`, `WinMain.cpp` — language detection, `ClientEngine::Startup`, message pump |
+| CMO Mesh Assets | ✅ Ready | `Assets/Mesh/<type>/*.cmo` — 65 low-poly meshes across 9 category subfolders (see §5 for full inventory) |
+| Server Shell | ⚠️ Stub | `EarthRiseServer/WinMain.cpp` — empty `main()` |
+
+### Detected Versions
+
+| Component | Version |
+|---|---|
+| C++ Standard | `stdcpplatest` (VS 18.x / v145) or `stdcpp17` (VS < 18) |
+| Windows App SDK | 1.8.260317003 |
+| CppWinRT | 2.0.250303.1 |
+| Windows SDK Build Tools | 10.0.28000.1721 |
+| PIX Event Runtime | 1.0.240308001 |
+| Platform | x64 only |
+| Min Windows Version | 10.0.17763.0 |
+
+### Missing Pieces (Must Be Created)
+
+| Component | Notes |
+|---|---|
+| `NetLib.h` | Required by `DataReader.h`/`DataWriter.h`; must define `DATALOAD_SIZE` and network protocol primitives |
+| `GameLogic` project | Mentioned in copilot instructions as a standalone project; does not exist in solution |
+| `GameRender` project | Mentioned in copilot instructions for object renderers; does not exist in solution |
+| Entity System | No entity/component/handle infrastructure |
+| CMO Loader | 65 `.cmo` meshes exist under `Assets/Mesh/<type>/` but no loader code exists |
+| Rendering Pipeline | No mesh rendering, no shaders beyond swap-chain present |
+| Networking | Winsock2 headers included but no socket code |
+| Server Loop | Empty `main()` |
+| Spatial Partitioning | None |
+| UI / HUD | None |
+| `BinaryFile::WriteFile` + serialization helpers | `DataReader`/`DataWriter` are hardcoded to `DATALOAD_SIZE` (1400 bytes) — unusable for file I/O (zone definitions, object defs). Extend existing `FileSys`/`BinaryFile` with `WriteFile` and add a CRTP serialization base (`SerializationBase.h`) providing `Read<T>`/`Write<T>` over `byte_buffer_t` |
+| NeuronCore header split | `NeuronCore.h` unconditionally includes WinRT projections (`winrt/Windows.Foundation.Collections.h`, etc.) and `TasksCore.h` uses `Windows::System::Threading::ThreadPoolTimer`. Server builds targeting Windows Server Core containers may not have these APIs available. Need a server-safe header tier |
+
+---
+
+## 2. Open Questions
+
+### Confirmed Answers
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | CMO format | **DirectXTK `.cmo`** — colors are **assigned at runtime** per-object/per-material, not baked into the CMO |
+| 2 | Visual style | **Darwinia-inspired** — see §4 below for detailed breakdown from reference image |
+| 3 | Camera / perspective | **First-person view** with **multi-unit RTS command** — Homeworld-style: free camera in 3D, attachable to flagship, with fleet command overlay |
+| 4 | World topology | **Single zone** — one contiguous play area |
+| 5 | Authority model | **Fully server-authoritative** — server owns all simulation state |
+| 6 | Packet size / protocol | **MTU-safe UDP** — `DATALOAD_SIZE = 1400` bytes |
+| 7 | GameLogic project | **Server-side simulation code** — not shared with client. Client only needs lightweight data structs for deserialization + rendering |
+| 8 | Database | **Azure SQL (MS SQL)** for player persistence |
+| R1 | Unit control | **Multi-unit** — player commands a fleet of ships (select, group, issue orders) |
+| R2 | Jumpgates | **In-zone fast travel** — warp to other areas of the zone quickly |
+| R3 | Camera | **First-person view** — camera attached to flagship or free-flying; combined with fleet command UI |
+| R4 | Movement | **Full 3D** — no 2D plane constraint; ships move freely in all axes |
+| R5 | Zone size | **Recommended: 100 km cube** (100,000 × 100,000 × 100,000 game units, 1 unit = 1 meter) — see §3.1 |
+| R6 | Concurrent players | **Start with 100** per server instance |
+| R7 | Persistence | **Objects and locations** — player fleet composition, ship loadouts, positions, inventory |
+| R8 | Authentication | **Custom login** (username/password or token-based, stored in Azure SQL) |
+| R9 | CI/CD | **Visual Studio builds** — no external pipeline yet; Phase 10 will add automated build/deploy |
+
+### ⚠️ Camera Design Note
+
+The original answer was **"top-down, RTS style"** but the refined answer is **"First Person View"**.
+These are fundamentally different. The plan now targets a **Homeworld-style hybrid**:
+
+- **First-person / free camera**: The camera can attach to any ship in the fleet (chase-cam / cockpit) or fly freely in 3D space
+- **Fleet command overlay**: While in first-person, the player can select ships, issue move/attack/dock orders via UI overlay
+- **Tactical zoom**: Scroll wheel zooms out to a broader fleet view for strategic command, zoom in for first-person combat
+- **Full 3D**: Camera and movement operate in all three axes — no 2D plane restriction
+
+---
+
+## 3. Target Architecture
+
+### Dependency Graph
+
+Since the game uses a **fully server-authoritative** model, simulation logic lives on the server.
+The client only needs lightweight data types (enums, struct definitions, serialization) to
+deserialize state updates and render. A thin **GameTypes** header set in NeuronCore provides
+the shared definitions; **GameLogic** contains the full simulation and links only to the server.
+
+### 3.1 Zone Size Recommendation
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| **Zone dimensions** | 100,000 × 100,000 × 100,000 units (100 km cube) | Large enough for strategic depth with jumpgate fast-travel; small enough for server to simulate with 100 players |
+| **Unit scale** | 1 unit = 1 meter | Ships are 20–200 m long; stations 500–2,000 m; asteroids 50–5,000 m |
+| **Ship speed range** | 50–500 units/sec (180–1,800 km/h) | Full zone traversal: 200–2,000 sec; jumpgates cut this to near-instant |
+| **Area of interest radius** | 10,000 units (10 km) | Full-detail entity updates sent to clients within this range of their camera |
+| **Spatial hash cell size** | 2,000 units (2 km) | Spatial hash (key = `hash(x/cell, y/cell, z/cell)` → bucket) — only occupied cells consume memory; O(1) insert/query; efficient for sparse 3D space |
+| **Draw distance** | 20,000 units (20 km) | Beyond this, entities are LOD-reduced or culled |
+| **Jumpgate count** | 4–8 per zone | Distributed to create strategic chokepoints and fast-travel routes |
+
+### 3.2 Dependency Graph
+
+```
+                           ┌─────────────────────────┐
+                           │       NeuronCore         │
+                           │ (math, events, file,     │
+                           │  timer, tasks, debug,    │
+                           │  NetLib, DataReader/     │
+                           │  DataWriter,             │
+                           │  GameTypes: entity       │
+                           │  handle, enums, structs) │
+                           └────────────┬─────────────┘
+                                        │
+                    ┌───────────────────┼───────────────────┐
+                    │                   │                   │
+           ┌────────▼───────┐  ┌────────▼────────┐  ┌──────▼────────┐
+           │  NeuronClient  │  │  NeuronServer   │  │   GameLogic   │
+           │ (DX12 graphics,│  │ (server engine  │  │ (simulation:  │
+           │  audio, input, │  │  bootstrap,     │  │  movement,    │
+           │  windowing)    │  │  socket accept) │  │  collision,   │
+           └────────┬───────┘  └────────┬────────┘  │  combat, AI,  │
+                    │                   │           │  spawning,    │
+           ┌────────▼───────┐           │           │  zone logic)  │
+           │   GameRender   │           │           └──────┬────────┘
+           │ (CMO loader,   │           │                  │
+           │  flat-color    │           │                  │
+           │  pipeline,     │           │    ┌─────────────┘
+           │  per-category  │           │    │
+           │  renderers,    │           │    │
+           │  camera, grid, │           │    │
+           │  bloom)        │           │    │
+           └────────┬───────┘           │    │
+                    │                   │    │
+           ┌────────▼───────┐  ┌────────▼────▼────┐
+           │   Earthrise    │  │  EarthRiseServer  │
+           │ (client app,   │  │ (server app,      │
+           │  game loop,    │  │  zone management, │
+           │  input, HUD,   │  │  sessions,        │
+           │  interpolation,│  │  state broadcast, │
+           │  UI)           │  │  persistence)     │
+           └────────────────┘  └───────────────────┘
+
+                    ┌────────────────┐
+                    │ EarthRiseTests │
+                    │ (unit + integ  │
+                    │  tests)        │
+                    └────────────────┘
+```
+
+### Key Architectural Decision: Simulation Code Placement
+
+| Option | Pros | Cons | Decision |
+|---|---|---|---|
+| **GameLogic = server-only** (simulation systems link only to EarthRiseServer) | Clean separation; client never has simulation code; no risk of client-side cheating via shared code | Shared data structs needed by both sides must live elsewhere (NeuronCore) | ✅ **Chosen** |
+| GameLogic = shared (client + server) | Client can run local prediction with identical physics | Larger client binary; shared code is a cheat surface; coupling risk | ❌ Rejected |
+
+**Consequence**: Entity data types (`SpaceObjectCategory`, `EntityHandle`, `SpaceObject` struct, per-category structs) are placed in **NeuronCore** as a `GameTypes/` header group. Full simulation systems (movement, collision, combat, AI) live in **GameLogic**, which only the server links.
+
+### Module Responsibilities
+
+| Module | Owns | Does NOT Own |
+|---|---|---|
+| **NeuronCore** | Math, timers, events, file I/O (`FileSys`/`BinaryFile`/`TextFile`), async, tasks, threads, debug, serialization (`DataReader`/`DataWriter` for network, `BinaryFile` + `SerializationBase` for disk), `NetLib` (UDP socket, packet framing, `DATALOAD_SIZE = 1400`), **GameTypes** (entity handle, `SpaceObjectCategory` enum, `SpaceObject` struct, per-category data structs, object definition types). Headers split into `NeuronCoreBase.h` (server-safe, no WinRT) and `NeuronCoreWinRT.h` (client) | Simulation logic, rendering, audio |
+| **GameLogic** | **Server-only** simulation: 3D movement system, collision system (3D spatial hash), combat system, fleet management, jumpgate warp, AI, spawning, zone simulation tick, command processing, data-driven object definitions loading (binary format via `BinaryFile`) | Rendering, audio, networking transport, UI, data type definitions (those are in NeuronCore/GameTypes) |
+| **NeuronClient** | DX12 device lifecycle, descriptor management, audio engine, WAV loading, PIX profiling, window management | Game-specific rendering, entity logic |
+| **NeuronServer** | Server engine bootstrap, UDP socket listener, session management, zone thread orchestration | Game rules, entity behavior |
+| **GameRender** | CMO mesh loader, flat-color shader pipeline, per-category renderers (`ShipRenderer`, `AsteroidRenderer`, `StationRenderer`, etc.), multi-mode camera (first-person / free-fly / tactical zoom), tactical grid, starfield, bloom post-processing, particle system | Entity logic, networking, audio |
+| **Earthrise** | Client `GameApp`, main loop, first-person flight + fleet command input, HUD/UI overlay (fleet panel, targeting, jumpgate UI), entity interpolation, server connection (UDP), world state mirror, custom login flow | Server simulation logic |
+| **EarthRiseServer** | Server `main()`, AKS health probes, config loading, zone lifecycle, player session management, state broadcast, Azure SQL persistence | Client rendering |
+| **EarthRiseTests** | Unit tests (GameLogic, NeuronCore, serialization, math) and integration tests (client-server protocol round-trip) | Production code |
+
+---
+
+## 4. Visual Style — Eighties / Darwinia Aesthetic
+
+> **Confirmed** — based on the provided Darwinia reference screenshot.
+
+### Reference Analysis (Darwinia Screenshot)
+
+The Darwinia aesthetic is characterized by:
+
+| Element | Description | Earthrise Adaptation |
+|---|---|---|
+| **Flat shading** | No textures; per-face solid colors with visible polygon facets | CMO meshes rendered with runtime-assigned flat diffuse colors, no smoothing |
+| **Low-poly geometry** | Intentionally angular, coarse tessellation — geometry is the art style | All space objects are low-poly CMOs; facets are a feature, not a limitation |
+| **Wireframe grid plane** | Blue-cyan wireframe grid as a ground/reference surface | **3D reference grid**: optional targeting/command plane rendered at the fleet's average Y-level; also used as a tactical overlay when zoomed out; fades with distance |
+| **Neon color palette** | Bright saturated accents — green, cyan, magenta, orange, yellow — on very dark backgrounds | Ships, stations, projectiles use neon accents; space background is deep black/navy |
+| **Bloom / glow** | Intense bloom on explosions, energy effects, and bright objects | Post-process bloom on weapon fire, engine trails, explosions, jumpgates |
+| **Small geometric entities** | Diamond shapes, stick figures, small particles as units/pickups | Crates as small geometric shapes; decorations as scattered diamond/particle sprites |
+| **Dark atmosphere** | Scene dominated by darkness, objects pop with color contrast | Deep-space black with subtle star particles; all gameplay elements are bright against void |
+| **Visible edges** | Polygon edges slightly visible due to flat shading and angular geometry | No wireframe overlay needed — flat shading on low-poly meshes naturally shows edges |
+| **Minimal UI chrome** | Labels are simple floating text (e.g., "biosphere" label in screenshot) | Floating text labels for stations, jumpgates; minimal HUD borders |
+| **Warm + cool contrast** | Warm colors (orange, gold, yellow) for terrain/structures; cool colors (blue, cyan, green) for units/grid | Stations/asteroids in warm tones; ships/projectiles in cool neons; grid in cyan/blue |
+
+### Rendering Pipeline Requirements
+
+1. **Vertex shader**: Standard MVP transform; pass flat (per-face or per-triangle) color to pixel shader
+2. **Pixel shader**: Output flat diffuse color — no lighting model beyond basic ambient + single directional light for silhouette depth
+3. **Runtime color assignment**: Each `SpaceObjectCategory` (or individual object definition) specifies its diffuse color; shader reads from a per-draw constant buffer
+4. **Post-process bloom**: Bright pixels (above threshold) get Gaussian blur and additive blend — critical for the Darwinia glow effect
+5. **Tactical grid**: Optional wireframe reference plane rendered at a configurable Y-level; cyan/blue color with distance-based alpha fade; used during fleet command mode for spatial reference in 3D space
+6. **Background**: Solid dark color (near-black) with optional sparse star particle layer
+7. **Particle effects**: Small geometric shapes (diamonds, squares) for explosions, pickups, ambient effects — matching the low-poly aesthetic
+8. **No textures**: The entire pipeline operates without texture sampling; all color is procedural or constant
+9. **First-person integration**: When attached to a ship, render a minimal cockpit frame or HUD overlay (Darwinia-style minimal chrome); engine glow and weapon effects visible from this perspective
+
+---
+
+## 5. Space Object Taxonomy
+
+| Category | Asset Folder | Mesh Count | Mesh Examples | Behavior | Simulated? | Rendered? | Per Zone |
+|---|---|---|---|---|---|---|---|
+| **Asteroid** | `Assets/Mesh/Asteroids/` | 6 | Asteroid01–06 | Static or slow-drift obstacle; possibly mineable/destructible | ✅ Server | ✅ | 100–10,000 |
+| **Crate** | `Assets/Mesh/Crates/` | 3 | Crate01, Crate02, CrateAlien01 | Lootable floating container; small geometric shape (Darwinia diamond style) | ✅ Server | ✅ | 10–500 |
+| **Decoration** | `Assets/Mesh/Decorations/` | 4 | BrokenAsteroid01, Satellite01, Satellite01Rust, StationWreck01 | Cosmetic-only: debris, satellites, ambient geometric particles | ✅ Server spawns | ✅ | 100–5,000 |
+| **Ship (Hull)** | `Assets/Mesh/Hulls/` | 30 | HullAsteria, HullAurora, HullAvalanche, …, HullYamato | Player or NPC vessel; full 3D movement; weapons, AI | ✅ Server | ✅ | 10–1,000 |
+| **Jumpgate** | `Assets/Mesh/Jumpgates/` | 1 | Jumpgate01 | In-zone fast-travel teleportation point | ✅ Server | ✅ | 1–10 |
+| **Projectile** | `Assets/Mesh/Projectiles/` | 5 | AlienSeeker, MissileHeavy, MissileLight, RocketHeavy, RocketLight | Short-lived damage entity; travels from turret to target | ✅ Server | ✅ | 0–5,000 |
+| **SpaceObject** | `Assets/Mesh/SpaceObjects/` | 8 | DebrisGenericBarrel01, DebrisGenericWreck01, ErgrekTerminal, … | Generic base / catch-all (debris, quest objects) | ✅ Server | ✅ | — |
+| **Station** | `Assets/Mesh/Stations/` | 5 | Business01, Military01, Mining01, Outpost01, Science01 | Large static structure; docking, services (trade, repair, fitting) | ✅ Server | ✅ | 1–20 |
+| **Turret** | `Assets/Mesh/Turrets/` | 3 | AlienTurret01, BallisticTurret01, EnergyTurret01 | Weapon emplacement on ships or stations; auto-aim or player-directed | ✅ Server | ✅ | 10–500 |
+
+**Total: 65 CMO meshes** across 9 subfolders. Folder names map 1:1 to `SpaceObjectCategory` values (with `Hulls/` → `Ship`).
+
+### Proposed Enum (NeuronCore/GameTypes)
+
+```cpp
+enum class SpaceObjectCategory : uint8_t
+{
+    SpaceObject,  // Generic base
+    Asteroid,
+    Crate,
+    Decoration,
+    Ship,
+    Jumpgate,
+    Projectile,
+    Station,
+    Turret,
+
+    COUNT         // Sentinel for ENUM_HELPER
+};
+ENUM_HELPER(SpaceObjectCategory, SpaceObject, Turret)
+```
+
+---
+
+## 6. Phase Breakdown
+
+Each phase is designed to produce a **buildable, testable** increment. No phase should leave the solution in a broken state.
+
+---
+
+### Phase 1 — Foundation & Shared Core
+
+**Goal**: Create the missing foundational pieces so that all projects build, and establish the shared data type layer in NeuronCore.
+
+#### Deliverables
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 1.1 | Create `NetLib.h` — define `DATALOAD_SIZE = 1400` (MTU-safe UDP), packet header struct, message ID enum, UDP socket primitives | NeuronCore | `NetLib.h` |
+| 1.2 | Verify `DataReader` / `DataWriter` compile with new `NetLib.h` | NeuronCore | — |
+| 1.3 | **Split `ENUM_HELPER` & fix postfix `++`** — refactor `NeuronHelper.h`: `ENUM_HELPER` provides sequential operators (++, --, iterator, range, `SizeOf`); new `ENUM_FLAGS_HELPER` adds bitwise operators (`\|`, `&`, `^`, `~`, `!`). Sequential enums like `SpaceObjectCategory` use `ENUM_HELPER`; flag enums use `ENUM_FLAGS_HELPER`. **Bug fix**: the existing postfix `operator++(T&, int)` returns the *new* value instead of the pre-increment value — fix to return old value before incrementing. Also mark redundant type-specific methods in `DataWriter` (e.g., `WriteInt16`, `WriteFloat`) as `[[deprecated]]` in favor of the generic `Write<T>()` template | NeuronCore | `NeuronHelper.h`, `DataWriter.h` |
+| 1.4 | Create **GameLogic** static lib project (server-only simulation), add to solution, configure include paths (includes NeuronCore) | GameLogic | `GameLogic.vcxproj`, `pch.h`, `pch.cpp`, `GameLogic.h` |
+| 1.5 | Create **GameRender** static lib project, add to solution, configure include paths (includes NeuronClient, NeuronCore) | GameRender | `GameRender.vcxproj`, `pch.h`, `pch.cpp`, `GameRender.h` |
+| 1.6 | Create **EarthRiseTests** native unit test project, add to solution | EarthRiseTests | `EarthRiseTests.vcxproj`, `pch.h`, `pch.cpp` |
+| 1.7 | Update `EarthRiseServer.vcxproj` to reference GameLogic (server-only) | — | `.vcxproj` edit |
+| 1.8 | Update `Earthrise.vcxproj` to reference GameRender (client-only) | — | `.vcxproj` edit |
+| 1.9 | **Fix `RenderCanvas()` call** — add `main->RenderCanvas()` between `RenderScene()` and `Graphics::Core::Present()` in `Earthrise/WinMain.cpp`. Currently `RenderCanvas()` is defined in `GameMain.h` but never called; Phase 8 depends on it for HUD/UI rendering. **Note**: `RenderCanvas()` renders into the *same* command list and render target as `RenderScene()` — there is no intermediate clear. It composites UI on top of the 3D scene. If a separate LDR render target is needed for tone-mapping, that infrastructure must be added in Phase 3D alongside bloom | Earthrise | `WinMain.cpp` |
+| 1.10 | Create `NeuronCore/GameTypes/` header group — `EntityHandle.h`, `SpaceObjectCategory.h` stubs (populated in Phase 2) | NeuronCore | `GameTypes/` headers |
+| 1.11 | Verify full solution builds in Debug and Release x64 | — | — |
+| 1.12 | **Extend `FileSys`/`BinaryFile`** — add `BinaryFile::WriteFile(const std::wstring&, const byte_buffer_t&)` for writing binary data to disk. Create `SerializationBase.h` — a CRTP base class template providing `Read<T>`/`Write<T>` over `byte_buffer_t` (`std::vector<uint8_t>`), shared by both `DataReader`/`DataWriter` (network, fixed 1400-byte) and new `BinaryDataReader`/`BinaryDataWriter` helpers (disk, unlimited). `BinaryFile::ReadFile` already returns `byte_buffer_t`; the new helpers wrap a `byte_buffer_t` with a cursor for structured deserialization. Not constrained by `DATALOAD_SIZE`. `DataReader`/`DataWriter` remain for network packets only | NeuronCore | `FileSys.h` (extended), `FileSys.cpp` (extended), `SerializationBase.h` |
+| 1.13 | **Split NeuronCore headers for server compatibility** — `NeuronCore.h` currently includes WinRT projections (`winrt/Windows.Foundation.Collections.h`, `winrt/Windows.Globalization.h`, etc.) and `TasksCore.h` uses `Windows::System::Threading::ThreadPoolTimer`. Create `NeuronCoreBase.h` (pure C++ STL + Win32 + Winsock — server-safe) and `NeuronCoreWinRT.h` (adds WinRT projections — client-only). `NeuronServer/pch.h` includes `NeuronCoreBase.h`; `NeuronClient/pch.h` includes full `NeuronCore.h`. Add a `CreateTimerQueueTimer`-based fallback in `TasksCore` for server builds | NeuronCore, NeuronServer | `NeuronCoreBase.h`, `NeuronCoreWinRT.h`, `TasksCore.h/.cpp` edits |
+| 1.14 | **Verify swap chain presentation mode** — confirm `Graphics::Core::Present()` uses `DXGI_SWAP_EFFECT_FLIP_DISCARD` with configurable VSync (pass `syncInterval = 0` for uncapped, `1` for VSync). Document the current behavior. The main loop spin (`PeekMessage` without `Sleep`) relies on VSync for frame pacing; add a config option for uncapped mode | Earthrise | `WinMain.cpp`, `GraphicsCore.cpp` audit |
+| 1.15 | **Verify full solution builds in Debug and Release x64** (re-verify after 1.12–1.14 changes) | — | — |
+
+#### Tests (Phase 1)
+
+- Unit: `DataReader`/`DataWriter` round-trip test (write values, read them back, verify equality)
+- Unit: `BinaryFile` + `BinaryDataReader`/`BinaryDataWriter` round-trip test (write arbitrary-length data via `BinaryFile::WriteFile`, read back via `BinaryFile::ReadFile`, deserialize with `BinaryDataReader`, verify — no 1400-byte limit)
+- Unit: `EventManager` publish/subscribe/unsubscribe test
+- Unit: `Neuron::Math` vector operations sanity checks
+- Unit: Verify postfix `operator++` on `ENUM_HELPER` enums returns pre-increment value
+
+---
+
+### Phase 2 — Entity System & Space Object Data Model
+
+**Goal**: Build the entity data types (shared via NeuronCore/GameTypes) and the server-side entity management (GameLogic).
+
+#### Deliverables
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 2.1 | **Entity Handle** — typed `(index, generation)` handle, 32-bit compact representation | NeuronCore | `GameTypes/EntityHandle.h` |
+| 2.2 | **SpaceObjectCategory** enum with `ENUM_HELPER` | NeuronCore | `GameTypes/SpaceObjectCategory.h` |
+| 2.3 | **SpaceObject** flat struct (composition, not inheritance) — handle, category, transform (`XMFLOAT3` position, `XMFLOAT4` orientation), velocity, bounding radius, runtime color, mesh name hash, active flag. This is the **common component** shared by all entity categories. No virtual methods, no base-class pointer chasing — optimized for cache-friendly iteration by movement/rendering systems | NeuronCore | `GameTypes/SpaceObject.h` |
+| 2.4 | **Per-category component structs** (parallel SoA arrays, not inheritance) — `AsteroidData`, `CrateData`, `DecorationData`, `ShipData`, `JumpgateData`, `ProjectileData`, `StationData`, `TurretData`. Each contains only the category-specific fields (e.g., `ShipData` has shield/armor/hull HP, energy, turret slots; `ProjectileData` has lifetime, damage, owner handle). Stored in separate arrays keyed by `EntityHandle`, enabling per-system iteration without touching unrelated data (e.g., combat iterates `ShipData` only, movement iterates `SpaceObject` transforms only) | NeuronCore | `GameTypes/AsteroidData.h`, `GameTypes/ShipData.h`, etc. |
+| 2.5 | **Object Definition data types** — data-driven templates (ship stats, asteroid variants, turret fire rates); each definition includes a **mesh filename** (e.g., `"HullAvalanche"`) that maps to `Assets/Mesh/<CategoryFolder>/<MeshName>.cmo` at load time; type definitions shared, loading logic server-only (uses `BinaryFile::ReadFile` + `BinaryDataReader` for disk I/O). Client uses mesh filename from spawn/state messages to look up the mesh in `MeshCache` | NeuronCore (types) + GameLogic (loading) | `GameTypes/ObjectDefs.h`, `GameLogic/ObjectDefsLoader.cpp` |
+| 2.6 | **Entity Pool** — slot-map backed fixed-capacity pool; alloc / free / lookup by handle (server-only) | GameLogic | `EntityPool.h`, `EntityPool.cpp` |
+| 2.7 | **SpaceObjectManager** — creates/destroys entities by category; owns the `SpaceObject` array (common component) and per-category `*Data` arrays (SoA layout); iterates active objects per-category for system dispatch. Provides `GetSpaceObject(EntityHandle)`, `GetShipData(EntityHandle)`, etc. (server-only) | GameLogic | `SpaceObjectManager.h`, `SpaceObjectManager.cpp` |
+
+> **Design Decision — Composition over Inheritance**: Per-category data uses **SoA component arrays** rather than a polymorphic `SpaceObject` hierarchy. Rationale: (1) cache-friendly iteration per-system (movement touches only transforms; combat touches only `ShipData`); (2) no virtual dispatch overhead in hot loops simulating 10,000+ entities at 20 Hz; (3) `SpaceObject` remains a POD-like flat struct suitable for trivial serialization. Each `*Data` struct is stored in a parallel array indexed by the same `EntityHandle` slot, so lookup is O(1).
+
+#### Tests (Phase 2)
+
+- Unit: EntityHandle creation, generation increment on reuse, invalid-handle detection
+- Unit: EntityPool alloc/free/lookup, pool exhaustion behavior
+- Unit: SpaceObjectManager create/destroy across all categories
+- Unit: SpaceObject serialization round-trip via DataWriter/DataReader (verifies NeuronCore types + serialization)
+
+---
+
+### Phase 3 — CMO Asset Pipeline & Flat-Color Rendering
+
+**Goal**: Load DirectXTK `.cmo` mesh files and render them with runtime-assigned flat colors. Establish the Darwinia visual style with first-person / tactical camera and 3D space rendering.
+
+> **Note**: `GameApp::Startup()` returns `Windows::Foundation::IAsyncAction` (WinRT coroutine). Use `co_await` for async asset loading (CMO files, shader compilation) and leverage the `ASyncLoader` base class for loading-state tracking.
+
+Phase 3 is split into four sub-phases. Each produces a buildable, testable increment.
+
+#### Phase 3A — DX12 GPU Infrastructure (4 files, medium risk)
+
+These subsystems are prerequisites for all rendering and do not exist in the codebase.
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 3A.1 | **Upload heap** — ring-buffer backed GPU upload heap for per-frame dynamic data (constant buffers, vertex updates); double- or triple-buffered per swap chain frame | GameRender | `UploadHeap.h`, `UploadHeap.cpp` |
+| 3A.2 | **Constant buffer manager** — allocate per-draw constant buffer blocks from the upload heap; return GPU virtual address for root descriptor binding | GameRender | `ConstantBufferAllocator.h`, `ConstantBufferAllocator.cpp` |
+| 3A.3 | **Root signature & PSO helpers** — utility functions to build root signatures (from descriptor tables / root constants / root CBV) and create graphics PSOs from shader bytecode; cache compiled PSOs by hash | GameRender | `PipelineHelpers.h`, `PipelineHelpers.cpp` |
+| 3A.4 | **Reverse-Z depth buffer** — configure projection matrices with reversed near/far (near = draw distance, far = near clip); clear depth to `0.0f`; use `D3D12_COMPARISON_FUNC_GREATER_EQUAL`. Prevents z-fighting at the 20 km draw distance | GameRender | `Camera.h` (projection setup), `FlatColorPipeline` (PSO depth comparison) |
+| 3A.5 | **Shader-visible descriptor heap ring allocator** — the existing `DescriptorAllocator` in `GraphicsCore` only handles CPU-visible heaps. Phase 3D bloom post-processing requires SRVs for intermediate render targets bound in shader-visible heaps. Create a per-frame ring allocator for the `D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV` shader-visible heap; bind via `SetDescriptorHeaps` once per frame | GameRender | `ShaderVisibleHeap.h`, `ShaderVisibleHeap.cpp` |
+| 3A.6 | **GPU resource manager** — after initial upload of vertex/index buffers via the upload heap, copy data to `D3D12_HEAP_TYPE_DEFAULT` resources for GPU-optimal access; release the upload staging memory. Provides `CreateStaticBuffer(data, size)` → default-heap `ID3D12Resource` | GameRender | `GpuResourceManager.h`, `GpuResourceManager.cpp` |
+
+**Tests (Phase 3A)**:
+- Unit: UploadHeap — allocate, wrap around ring buffer, verify no overlap across frames
+- Unit: ConstantBufferAllocator — allocate N blocks, verify GPU addresses are unique and aligned (256-byte)
+- Integration: Create device + upload heap + constant buffer; write test data; verify no D3D12 debug layer errors
+
+#### Phase 3B — Asset Pipeline (3 files, medium risk)
+
+> **Asset Convention**: All 65 game meshes live under `Earthrise/Assets/Mesh/<CategoryFolder>/<MeshName>.cmo`. The category folder maps to `SpaceObjectCategory` (with `Hulls/` → `Ship`). Mesh filenames (without extension) are the same strings stored in object definitions and sent in spawn messages.
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 3B.1 | **CMO Loader** — parse DirectXTK `.cmo` binary format, extract vertex positions, normals, indices; **ignore texture references and baked material colors** (colors assigned at runtime). Must handle all 65 existing meshes (various poly counts and submesh configurations across the 9 category folders) | GameRender | `CmoLoader.h`, `CmoLoader.cpp` |
+| 3B.2 | **Mesh** — GPU resource wrapper: vertex buffer, index buffer, submesh table (material index, index range); uses upload heap for initial resource creation | GameRender | `Mesh.h`, `Mesh.cpp` |
+| 3B.3 | **MeshCache** — load-once asset cache keyed by relative path (e.g., `"Hulls/HullAvalanche"`); resolves to `Assets/Mesh/<key>.cmo`; returns mesh handle. Provides `PreloadCategory(SpaceObjectCategory)` to batch-load all meshes in a category folder at startup | GameRender | `MeshCache.h`, `MeshCache.cpp` |
+
+**Folder → Category Mapping** (used by `MeshCache::PreloadCategory`):
+
+| `SpaceObjectCategory` | Asset Subfolder |
+|---|---|
+| `Asteroid` | `Assets/Mesh/Asteroids/` |
+| `Crate` | `Assets/Mesh/Crates/` |
+| `Decoration` | `Assets/Mesh/Decorations/` |
+| `Ship` | `Assets/Mesh/Hulls/` |
+| `Jumpgate` | `Assets/Mesh/Jumpgates/` |
+| `Projectile` | `Assets/Mesh/Projectiles/` |
+| `SpaceObject` | `Assets/Mesh/SpaceObjects/` |
+| `Station` | `Assets/Mesh/Stations/` |
+| `Turret` | `Assets/Mesh/Turrets/` |
+
+**Tests (Phase 3B)**:
+- Unit: CMO loader parses `Assets/Mesh/Asteroids/Asteroid01.cmo` — vertex/index counts are non-zero, submesh count ≥ 1
+- Unit: CMO loader parses `Assets/Mesh/Hulls/HullShuttle.cmo` (a hull with multiple submeshes) — all submeshes extracted
+- Unit: CMO loader handles all 65 `.cmo` files without error (batch validation)
+- Unit: MeshCache deduplicates loads (`"Hulls/HullAvalanche"` loaded twice → same handle)
+- Unit: MeshCache `PreloadCategory(SpaceObjectCategory::Asteroid)` loads all 6 asteroid meshes
+
+#### Phase 3C — Flat-Color Rendering & Camera (8 files, medium risk)
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 3C.1 | **Flat-color shaders** — vertex shader (MVP transform, `nointerpolation` for flat shading), pixel shader (flat diffuse color from per-draw constant buffer + basic ambient/directional light for depth), root signature, PSO (using Phase 3A helpers, reverse-Z depth comparison) | GameRender | `FlatColorVS.hlsl`, `FlatColorPS.hlsl`, `FlatColorPipeline.h/.cpp` |
+| 3C.2 | **SpaceObjectRenderer base** — bind mesh, set world transform via constant buffer allocator, set **runtime-assigned color**, draw | GameRender | `SpaceObjectRenderer.h`, `SpaceObjectRenderer.cpp` |
+| 3C.3 | **Per-category renderers** — `AsteroidRenderer`, `ShipRenderer`, `StationRenderer`, `JumpgateRenderer`, `CrateRenderer`, `DecorationRenderer`, `ProjectileRenderer`, `TurretRenderer` | GameRender | `AsteroidRenderer.h/.cpp`, etc. |
+| 3C.4 | **Camera system** — multi-mode: **(a)** First-person chase-cam attached to flagship, **(b)** free-fly camera for fleet overview, **(c)** tactical zoom (scroll wheel) that pulls out to a strategic view; **reverse-Z** perspective projection; frustum culling. **Origin-rebasing**: subtract camera world position from all entity positions before building the view-projection matrix — this keeps all GPU-side coordinates near the origin, preventing `float` precision loss at the 100 km zone edges (at 100,000 units, `float` has only ~0.008 unit / 8 mm precision) | GameRender | `Camera.h`, `Camera.cpp` |
+| 3C.5 | **Skybox / star field** — dark background with sparse procedural star particles; no texture needed (point sprites or small quads) | GameRender | `Starfield.h/.cpp` |
+| 3C.6 | **Render Scene integration** — hook renderers into `GameApp::RenderScene()`; draw starfield + test scene with one real mesh per category (e.g., `Asteroid01`, `Crate01`, `HullShuttle`, `Jumpgate01`, `MissileLight`, `DebrisGenericBarrel01`, `Mining01`, `BallisticTurret01`); each with a distinct runtime color; first-person camera active | Earthrise | `GameApp.cpp` edits |
+
+**Tests (Phase 3C)**:
+- Integration: Render starfield + one real mesh per category (Asteroid01, Crate01, HullShuttle, Jumpgate01, MissileLight, DebrisGenericBarrel01, Mining01, BallisticTurret01) from first-person camera; verify no D3D12 debug layer errors
+- Integration: Camera mode switch (chase → free-fly → tactical zoom); verify smooth transitions
+- Integration: Verify reverse-Z depth: near and far objects at varying distances render without z-fighting
+
+#### Phase 3D — Post-Processing & Tactical Overlays (4 files, low risk)
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 3D.1 | **Post-processing: Bloom** — extract bright pixels above threshold, Gaussian blur, additive blend; critical for Darwinia glow on weapons/engines/explosions | GameRender | `PostProcess.h/.cpp`, `BloomExtractPS.hlsl`, `BloomBlurPS.hlsl`, `BloomCompositePS.hlsl` |
+| 3D.2 | **Tactical Grid** — optional wireframe reference plane for fleet command mode; rendered at a configurable Y-level; cyan/blue with distance fade; toggled on/off by player | GameRender | `TacticalGrid.h/.cpp`, `GridVS.hlsl`, `GridPS.hlsl` |
+| 3D.3 | **SpriteBatch** — Phase 8 UI rendering depends on a `SpriteBatch` for textured quads (text glyphs, icons). Either implement a minimal DX12 sprite batcher in GameRender or integrate DirectXTK12’s `SpriteBatch` as a NuGet dependency. Must support the existing single command list model. Provide `Begin()`/`Draw()`/`End()` API with per-sprite transforms | GameRender | `SpriteBatch.h`, `SpriteBatch.cpp` (or DirectXTK12 NuGet) |
+
+**Tests (Phase 3D)**:
+- Integration: Bloom post-process on a bright object; visually verify glow effect
+- Integration: Tactical grid renders at correct Y-level, fades with distance, toggles on/off
+
+---
+
+### Phase 4 — Networking Layer
+
+**Goal**: Implement the client↔server communication protocol over **UDP** (MTU-safe, 1400-byte datagrams). Reliable delivery layer built on top for login/chat/inventory; unreliable for state updates.
+
+#### Deliverables
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 4.1 | **UDP Socket wrapper** — Winsock2 UDP socket, non-blocking send/recv, address management | NeuronCore | `NetLib.h` expansion, `UdpSocket.h/.cpp` |
+| 4.2 | **Reliability layer** — sequence numbers, ACK tracking, resend queue for reliable messages (login, chat, inventory); unreliable channel for state updates | NeuronCore | `ReliableChannel.h/.cpp` |
+| 4.3 | **Packet framing** — message ID + sequence + payload within 1400-byte datagrams; serialization via DataWriter/DataReader | NeuronCore | `Packet.h` |
+| 4.4 | **Message definitions** — login request/response, entity spawn/despawn, state snapshot, player input command, chat, disconnect | NeuronCore | `Messages.h` |
+| 4.5 | **Server listener** — UDP recvfrom loop, session identification by address, create/manage sessions per client | NeuronServer | `SessionManager.h/.cpp`, `ClientSession.h/.cpp` |
+| 4.6 | **Client connector** — connect to server (initial handshake over reliable channel), send/receive on background thread, queue incoming messages for main thread | Earthrise | `ServerConnection.h/.cpp` |
+| 4.7 | **Bandwidth throttling** — limit update rate per client, prioritize nearby entities, area-of-interest filtering | NeuronServer | `BandwidthManager.h/.cpp` |
+
+#### Tests (Phase 4)
+
+- Unit: Packet write → frame → parse round-trip
+- Unit: Message serialize/deserialize for each message type
+- Integration: Loopback test — server accepts connection from client on localhost, exchange login handshake, verify session created
+
+---
+
+### Phase 5 — Server Simulation Loop
+
+**Goal**: The server runs a **fixed-timestep** game simulation in a **single 100 km³ zone**, processes fleet commands, and broadcasts world state snapshots over UDP to up to **100 concurrent players**.
+
+#### Deliverables
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 5.1 | **Server main loop** — fixed-timestep tick (e.g., 20 Hz), process input queue, simulate, broadcast state | EarthRiseServer | `WinMain.cpp` expansion, `ServerLoop.h/.cpp` |
+| 5.2 | **Zone** — the single persistent 100 km³ simulation region; owns a `SpaceObjectManager`, player list, 3D spatial hash. **Floating-point precision strategy**: server stores entity positions as `double` (or uses periodic origin-rebasing) to avoid precision loss at zone edges (at 100,000 units, `float` has only ~0.008 unit precision). Client receives positions as `float` relative to the player’s camera origin (origin-rebased by the state broadcaster) | EarthRiseServer | `Zone.h`, `Zone.cpp` |
+| 5.3 | **Zone loader** — load zone definition from data file (asteroid fields, station positions, jumpgate placements, decoration spawns) via `BinaryFile::ReadFile` + `BinaryDataReader` | EarthRiseServer | `ZoneLoader.h/.cpp` |
+| 5.4 | **Input processing** — dequeue fleet commands (move-to-position-3D, attack-target, dock, loot, use-ability, warp-to-jumpgate), apply to player's fleet entities | GameLogic | `InputCommand.h`, `CommandProcessor.h/.cpp` |
+| 5.5 | **Movement system** — full 3D steering/arrival behavior, velocity clamping, rotation toward target (quaternion-based); 3D pathfinding around obstacles | GameLogic | `MovementSystem.h/.cpp` |
+| 5.6 | **Collision detection** — broad-phase 3D spatial hash (2 km logical cells, hash-mapped — only occupied cells allocate memory), narrow-phase sphere/OBB tests, generate collision events | GameLogic | `CollisionSystem.h/.cpp`, `SpatialHash.h/.cpp` |
+| 5.7 | **State broadcast** — serialize entities within 10 km area-of-interest radius of each player's camera, send snapshots via UDP (1400-byte datagrams) | EarthRiseServer | `StateBroadcaster.h/.cpp` |
+| 5.8 | **Jumpgate fast-travel** — server-side: player issues warp command → ship teleported to destination jumpgate position after brief channel time | GameLogic | `JumpgateSystem.h/.cpp` |
+
+#### Tests (Phase 5)
+
+- Unit: MovementSystem — apply velocity for N ticks, verify final position
+- Unit: CollisionSystem — two spheres overlapping → collision detected; two far apart → no collision
+- Unit: SpatialHash — insert/remove/query entities in region; verify only occupied cells consume memory
+- Unit: CommandProcessor — apply thrust command → ship velocity changes
+- Unit: JumpgateSystem — fleet at gate → warp initiated → fleet position updated to destination gate
+- Integration: Server starts, loads a zone, ticks for 100 frames without crash
+
+> **Performance Guidance — EventManager**: The existing `EventManager` uses `std::scoped_lock` on every `Publish`/`Subscribe`/`Unsubscribe` call, which serializes all event dispatch. **Do not use `EventManager` for hot-path simulation systems** (movement, collision, combat). These systems should use direct function calls or per-system callback lists. Reserve `EventManager` for infrequent events only (player login, chat, docking, session management).
+
+---
+
+### Phase 6 — Client Game Loop & World Sync
+
+**Goal**: The client connects to the server, receives world state snapshots, and renders the live game world with first-person camera and fleet command controls.
+
+#### Deliverables
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 6.1 | **Client state manager** — maintain a local mirror of server entities; apply state updates, interpolate between snapshots | Earthrise | `ClientWorldState.h/.cpp` |
+| 6.2 | **Entity interpolation** — smooth rendering between server ticks using timestamp-based lerp | Earthrise | `Interpolation.h/.cpp` |
+| 6.3 | **Client-side prediction** — immediately show owned fleet movement toward command target, reconcile with server corrections | Earthrise | `Prediction.h/.cpp` |
+| 6.4 | **Input state manager** — abstraction layer between raw Windows messages and game actions. Captures per-frame input state (key down/up/held, mouse position/delta, scroll wheel, touch input). Provides polling API (`IsKeyDown`, `GetMouseDelta`, `GetTouchPoints`) and maps raw input to configurable abstract actions (`InputAction::MoveForward`, `InputAction::SelectUnit`, `InputAction::ZoomTactical`). **Keyboard + mouse is the primary input method** for this genre; touch is supported as a secondary input for tablet/hybrid devices. Use `WM_POINTER` messages (available on all targeted Windows 10+ versions) for touch/pen input rather than `WM_TOUCH`/`WM_GESTURE`. Touch gestures: tap = select, drag = camera pan, pinch = zoom, long-press = context menu | Earthrise | `InputState.h/.cpp` |
+| 6.5 | **Input handler** — consumes `InputState` to produce game-level commands: first-person flight controls (WASD/mouse for flagship); fleet command overlay (right-click move-to via 3D ray cast, attack-target, group hotkeys); touch alternatives (tap-select, drag-move); send commands to server via UDP | Earthrise | `InputHandler.h/.cpp` |
+| 6.6 | **Connect flow** — startup → connect to server → login → receive initial zone state → begin rendering. `GameApp::Startup()` uses `co_await` for async operations (leveraging `ASyncLoader` base class). **Note**: never call `ASyncLoader::WaitForLoad()` on the main thread — it busy-spins with `std::this_thread::yield()`. Use `co_await` exclusively for async waits in coroutine contexts | Earthrise | `GameApp.cpp` expansion |
+| 6.7 | **Render active world** — iterate `ClientWorldState` entities, dispatch to appropriate category renderer | Earthrise | `GameApp::RenderScene()` |
+| 6.8 | **Fleet selection UI** — multi-select (click, Ctrl+click, box-drag in tactical view), selection brackets around owned ships, group assignment (Ctrl+1..9), move/attack cursors | Earthrise | `FleetSelectionUI.h/.cpp` |
+| 6.9 | **3D command targeting** — ray-cast from camera through mouse position into 3D space; use tactical grid plane or target object for move/attack destination | Earthrise | `CommandTargeting.h/.cpp` |
+
+#### Tests (Phase 6)
+
+- Unit: Interpolation — given two snapshots at t=0 and t=1, verify position at t=0.5 is midpoint
+- Unit: Prediction — apply input locally, receive server correction, verify reconciliation
+- Unit: InputState — simulate key press → `IsKeyDown` returns true; release → false
+- Unit: InputState — simulate touch tap at screen coordinate → maps to `InputAction::SelectUnit`
+- Unit: InputState — verify `WM_POINTER` messages correctly populate touch state
+- Unit: 3D ray-cast — screen coordinate → world ray → intersection with plane at known distance → correct world position
+- Integration: Client connects to local server, receives spawn of a static asteroid, renders it from first-person camera
+- Integration: Select fleet ships via mouse click, issue move command, verify movement on server and interpolated on client
+
+---
+
+### Phase 7 — Gameplay Systems
+
+**Goal**: Implement the core fleet-command gameplay mechanics that make Earthrise playable.
+
+#### Deliverables
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 7.1 | **Combat system** — fleet attack commands (attack-target, attack-move, focus fire), turret auto-fire within range, projectile spawning, hit detection, damage application, ship destruction | GameLogic | `CombatSystem.h/.cpp` |
+| 7.2 | **Ship loadout** — hull type, mounted turrets, shield/armor/hull HP, energy system | NeuronCore (types) + GameLogic (logic) | `GameTypes/ShipLoadout.h`, `ShipLoadoutSystem.cpp` |
+| 7.3 | **Projectile lifecycle** — spawn from turret, travel, collide, despawn on hit or timeout | GameLogic | `ProjectileSystem.h/.cpp` |
+| 7.4 | **Crate looting** — any fleet ship enters proximity → loot pickup event → player inventory update | GameLogic | `LootSystem.h/.cpp` |
+| 7.5 | **Station docking** — enter docking range → server event → client opens station UI | GameLogic + Earthrise | `DockingSystem.h/.cpp` |
+| 7.6 | **NPC / AI fleets** — patrol waypoints in 3D, aggro radius, chase, attack state machine; group/formation behavior for NPC squads | GameLogic | `NpcAI.h/.cpp` |
+| 7.7 | **Data-driven tuning** — all combat numbers, speeds, ranges, fire rates loaded from binary data files via `BinaryFile::ReadFile` + `BinaryDataReader`; zone definitions use the same format (see §9 Data File Format) | GameLogic | `GameData/` directory with binary defs |
+| 7.8 | **Fleet management** — player fleet composition (which ships the player owns/commands), formation movement, ship acquisition | GameLogic + NeuronCore (types) | `FleetSystem.h/.cpp`, `GameTypes/Fleet.h` |
+
+#### Tests (Phase 7)
+
+- Unit: CombatSystem — projectile hits ship → HP reduced by expected damage
+- Unit: ProjectileSystem — projectile travels at speed for duration → despawns
+- Unit: NPC state machine — transitions through patrol → aggro → attack correctly
+- Unit: FleetSystem — add/remove ships from fleet, formation positioning
+- Integration: Two player fleets engage in combat on local server → ships take damage → one fleet destroyed
+
+---
+
+### Phase 8 — HUD, UI & Player Interaction
+
+**Goal**: Player-facing interface elements for first-person flight + fleet command.
+
+#### Deliverables
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 8.1 | **HUD overlay** — flagship HP/shields/energy, speed vector, target info, fleet status panel, minimap (3D volume or 2D projection) | Earthrise | `HUD.h/.cpp` |
+| 8.2 | **Targeting system** — select target (click, nearest hostile, Tab-cycle), display target bracket in 3D with distance; fleet focus-fire command | Earthrise | `TargetingUI.h/.cpp` |
+| 8.3 | **Chat** — text input, message display, basic channels (local, system) | Earthrise | `Chat.h/.cpp` |
+| 8.4 | **Main menu** — server select, **custom login** (username/password), settings | Earthrise | `MainMenu.h/.cpp` |
+| 8.5 | **Station UI** — trade, repair, ship fitting (when docked) | Earthrise | `StationUI.h/.cpp` |
+| 8.6 | **Settings** — graphics quality, audio volume, key bindings, touch sensitivity | Earthrise | `Settings.h/.cpp` |
+| 8.7 | **Rendering**: All HUD/UI rendered via `GameApp::RenderCanvas()` (composited on top of the 3D scene — same command list, same render target, **no intermediate clear** between `RenderScene()` and `RenderCanvas()`; see Phase 1.9). UI elements use `SpriteBatch` (from Phase 3D.3) for textured quads (text, icons) and flat-color geometry for Darwinia-style minimal chrome (bars, brackets, grid lines) | Earthrise | — |
+| 8.8 | **Fleet command panel** — ship list with status, group assignment display, formation selector | Earthrise | `FleetPanel.h/.cpp` |
+| 8.9 | **Jumpgate UI** — warp destination selector when near a jumpgate, warp progress indicator | Earthrise | `JumpgateUI.h/.cpp` |
+
+#### Tests (Phase 8)
+
+- Unit: HUD data binding — set HP to 50%, verify bar width calculation
+- Integration: Full game loop with HUD rendering, no visual artifacts
+
+---
+
+### Phase 9 — Audio & Effects
+
+**Goal**: Spatial audio and visual effects for an immersive experience.
+
+#### Deliverables
+
+| # | Task | Project | Files |
+|---|---|---|---|
+| 9.1 | **Sound bank** — catalog of game sounds (engine hum, weapon fire, explosion, ambient space) | Earthrise | `SoundBank.h/.cpp` |
+| 9.2 | **Spatial audio integration** — 3D positioned sounds using existing `AudioEngine` X3DAudio support | Earthrise | `SpatialSound.h/.cpp` |
+| 9.3 | **Particle effects** — engine exhaust, explosion debris, shield hit sparks (flat-color particles matching aesthetic) | GameRender | `ParticleSystem.h/.cpp`, `ParticleRenderer.h/.cpp` |
+| 9.4 | **Event-driven audio** — subscribe to combat/explosion/dock events via `EventManager`, play appropriate sounds | Earthrise | `AudioEventHandler.h/.cpp` |
+
+#### Tests (Phase 9)
+
+- Unit: SoundBank loads all expected sound files without error
+- Integration: Explosion event → particle effect + sound play simultaneously
+
+---
+
+### Phase 10 — Azure Kubernetes Deployment
+
+**Goal**: Package and deploy `EarthRiseServer` to Azure Kubernetes Service (AKS).
+
+#### Deliverables
+
+| # | Task | Location | Files |
+|---|---|---|---|
+| 10.1 | **Dockerfile** — Windows Server Core container image with EarthRiseServer.exe and runtime dependencies | repo root | `Dockerfile.server` |
+| 10.2 | **AKS manifests** — Deployment, Service, ConfigMap for server configuration, HorizontalPodAutoscaler | `deploy/k8s/` | `deployment.yaml`, `service.yaml`, `configmap.yaml`, `hpa.yaml` |
+| 10.3 | **Health probes** — HTTP health/readiness endpoints in server (or TCP liveness) | EarthRiseServer | `HealthCheck.h/.cpp` |
+| 10.4 | **Configuration** — server reads zone config, tick rate, max players from environment variables / ConfigMap | EarthRiseServer | `ServerConfig.h/.cpp` |
+| 10.5 | **Persistent storage** — **Azure SQL (MS SQL)** for player data (accounts, ship loadouts, inventory, currency); optional Redis for session cache | EarthRiseServer | `Database.h/.cpp` (abstraction layer), `SqlDatabase.h/.cpp` |
+| 10.6 | **CI/CD pipeline** — currently builds in Visual Studio only; add automated MSBuild → test → container push → AKS deploy (GitHub Actions or Azure DevOps) | `.github/workflows/` or `azure-pipelines.yml` | `build-deploy.yml` |
+| 10.7 | **Monitoring** — Azure Monitor / Application Insights integration for server metrics, crash reporting | EarthRiseServer | `Telemetry.h/.cpp` |
+| 10.8 | **Load balancer** — Azure Load Balancer in front of AKS for player connection distribution | `deploy/k8s/` | `service.yaml` (LoadBalancer type) |
+| 10.9 | **Database schema** — Azure SQL schema: accounts (custom auth, hashed passwords), player fleets, ship loadouts, inventory, object positions; migration scripts | `deploy/sql/` | `schema.sql`, `migrations/` |
+| 10.10 | **Custom authentication** — username/password registration and login; password hashing (bcrypt/scrypt); session token generation; stored in Azure SQL | EarthRiseServer | `AuthSystem.h/.cpp` |
+
+#### Tests (Phase 10)
+
+- Integration: Container builds and starts successfully
+- Integration: Health probe responds within timeout
+- Integration: Client connects to containerized server, completes login handshake
+- Load: Multiple simulated clients connect; server maintains target tick rate
+
+---
+
+### Phase 11 — Polish, Optimization & Ship Readiness
+
+**Goal**: Performance tuning, bug fixing, and final quality pass.
+
+#### Deliverables
+
+| # | Task | Notes |
+|---|---|---|
+| 11.1 | **Frame-time profiling** — PIX captures on client, identify bottlenecks | Use existing `PixProfiler.h` |
+| 11.2 | **Server tick profiling** — measure per-system tick times, ensure budget met | Custom server-side timing |
+| 11.3 | **Memory audit** — verify no leaks (CRT debug heap on client, custom tracking on server) | `_CrtSetDbgFlag` already in `WinMain.cpp` |
+| 11.4 | **LOD system** — reduce draw calls for distant objects, simplified collision for far entities | GameRender, GameLogic |
+| 11.5 | **Frustum culling** — skip rendering off-screen objects | GameRender (Camera) |
+| 11.6 | **Parallel command list recording** — `GraphicsCore` currently has a single `m_commandList`; if CPU-side serial recording becomes a bottleneck, add per-thread command lists with `ExecuteBundle` or deferred command lists for parallel scene submission | GameRender, NeuronClient |
+| 11.7 | **Bandwidth optimization** — delta compression, area-of-interest filtering, dead reckoning | NeuronCore, EarthRiseServer |
+| 11.8 | **Stress testing** — simulated 100+ clients, verify server stability | Test tooling |
+| 11.9 | **Accessibility pass** — colorblind-friendly palette options, scalable HUD | Earthrise |
+| 11.10 | **Final build verification** — Debug + Release × all target configs | CI pipeline |
+
+---
+
+## 7. Testing Strategy
+
+### Unit Tests (EarthRiseTests project)
+
+**Framework**: Visual Studio Native Unit Test Framework (`CppUnitTest.h`)
+
+| Area | What We Test | Phase |
+|---|---|---|
+| NeuronCore Math | Vector operations, matrix transforms, alignment utilities | 1 |
+| NeuronCore Serialization | DataReader/DataWriter round-trip for all types + strings | 1 |
+| NeuronCore FileSys / BinaryFile | `BinaryFile::WriteFile`/`ReadFile` round-trip + `BinaryDataReader`/`BinaryDataWriter` structured serialization for arbitrary-length data; no 1400-byte limit | 1 |
+| NeuronCore ENUM_HELPER | Postfix `++` returns pre-increment value; iterator range covers all values | 1 |
+| NeuronCore Events | Subscribe, publish, unsubscribe, multi-subscriber ordering | 1 |
+| NeuronCore NetLib | Packet framing, message ID dispatch | 4 |
+| GameLogic Handles | EntityHandle create, validate, invalidate, generation wrap | 2 |
+| GameLogic Pools | EntityPool alloc, free, lookup, exhaustion | 2 |
+| GameLogic SpaceObjects | Create/destroy each category, property access | 2 |
+| GameLogic Movement | Velocity integration, rotation, clamping | 5 |
+| GameLogic Collision | Sphere-sphere, spatial hash insert/query | 5 |
+| GameLogic Combat | Damage calculation, destruction threshold | 7 |
+| GameLogic AI | State machine transitions | 7 |
+| GameRender CMO | Parse real game meshes (`Asteroid01.cmo`, `HullShuttle.cmo`); batch-validate all 65 `.cmo` files load without error | 3B |
+| GameRender MeshCache | Deduplication, handle validity, `PreloadCategory` loads all meshes in a subfolder | 3B |
+| GameRender GPU Infra | Upload heap ring buffer, constant buffer alignment | 3A |
+| InputState | Key state polling, touch → action mapping | 6 |
+| Interpolation | Lerp correctness at boundary and mid values | 6 |
+| Prediction | Input apply + server reconciliation | 6 |
+
+### Integration Tests
+
+| Test | What It Validates | Phase |
+|---|---|---|
+| Loopback handshake | Client connects to server on localhost, login succeeds | 4 |
+| Entity sync | Server spawns entity → client receives and creates local mirror | 6 |
+| Fleet command round-trip | Player issues move command → server processes → fleet ships move → client sees interpolated positions | 6 |
+| Combat round-trip | Player attack-commands target → server processes → projectile spawns → target takes damage → client sees HP update | 7 |
+| Jumpgate warp | Player fleet at jumpgate → warp command → fleet arrives at destination gate → client renders at new location | 7 |
+| Container boot | Docker image starts, health probe passes | 10 |
+| Custom auth flow | Register new account → login → session created → reconnect with token | 10 |
+| Database round-trip | Server saves player state to Azure SQL → restarts → player state restored | 10 |
+| Multi-client stress | N simulated clients, server tick rate stays above threshold | 10 |
+
+### Test Data
+
+- **CMO meshes**: Use the 65 existing game meshes under `Earthrise/Assets/Mesh/<type>/*.cmo` for rendering tests — no synthetic test meshes needed. Representative test set: `Asteroids/Asteroid01.cmo` (simple), `Hulls/HullShuttle.cmo` (multi-submesh hull), `Stations/Mining01.cmo` (large station), `SpaceObjects/DebrisGenericBarrel01.cmo` (generic base category)
+- Deterministic zone definition file for repeatable server tests
+- Recorded input sequences for replay tests
+
+---
+
+## 8. Risk Register
+
+| Risk | Impact | Likelihood | Mitigation |
+|---|---|---|---|
+| CMO meshes have no useful material data for colors | Rendering blocked | Low | **Confirmed**: colors assigned at runtime from object definitions, not from CMO materials — CMO only provides geometry. All 65 existing meshes under `Assets/Mesh/` are geometry-only |
+| CMO mesh variety across categories | Some meshes may have unexpected submesh configurations or vertex formats | Medium | Phase 3B batch-validates all 65 `.cmo` files during testing; loader must handle varying submesh counts and vertex layouts gracefully. **Validate vertex stride diversity early**: write a scan tool that reads the vertex stride from each `.cmo` header to confirm layout consistency. Some meshes may contain skinning data that the loader must strip or handle |
+| UDP reliability layer complexity | Networking delayed | Medium | Start with simple sequence/ACK; only login/chat/inventory need reliability; state updates are fire-and-forget |
+| UDP packet loss causes jerky movement | Visual quality | Medium | Entity interpolation + dead reckoning on client; redundant state in each snapshot |
+| Windows containers on AKS limited support | Deployment blocked | Medium | Evaluate Windows node pools early; server targets Windows Server Core containers exclusively |
+| `stdcpplatest` features vary between VS versions | Build breaks on different machines | Low | Pin to `stdcpp20` for shared code; use `stdcpplatest` only in projects that need it |
+| Server tick rate drops under load | Gameplay quality | High | Profile early (Phase 5), budget per-system, amortize AI across frames |
+| No existing test infrastructure | Bugs ship undetected | Medium | Phase 1 creates test project; require tests for every phase |
+| `NetLib.h` doesn't exist yet; DataReader/DataWriter won't compile | Build broken | High | Phase 1 priority — create `NetLib.h` first |
+| Azure SQL latency for real-time saves | Player data loss on crash | Medium | Batch writes; save on dock/logout/timer, not per-tick; Redis for hot session state |
+| Single-zone scalability ceiling | Performance at high player counts | High | Spatial partitioning for updates; area-of-interest filtering; profile early in Phase 5 |
+| Tactical zoom reveals many entities at once | Higher render/network cost at wide zoom | Medium | Aggressive frustum culling; LOD based on camera distance; bandwidth throttling per AoI radius |
+| First-person + fleet command is complex UX | Steep learning curve; input conflicts | Medium | Clear mode separation (flight vs. command); keyboard+mouse primary with touch as secondary fallback; tutorial flow; test with real players early |
+| Full 3D movement + 3D spatial hash | More complex collision/partitioning than 2D | Low | Well-tested 3D spatial hash (hash-mapped cells, only occupied cells allocated); sphere-based broad phase keeps it simple |
+| DX12 GPU infrastructure gaps | Rendering blocked; no upload heap, constant buffer management, or PSO helpers exist | High | Phase 3A creates all GPU infrastructure before any rendering code; verify with D3D12 debug layer |
+| Z-fighting at large draw distances | Visual artifacts on distant objects | Medium | Reverse-Z depth buffer (Phase 3A.4) provides near-logarithmic precision distribution |
+| `RenderCanvas()` never called in main loop | All Phase 8 HUD/UI renders to nothing | High | Phase 1.9 adds the call to `WinMain.cpp`; verify early with a test overlay |
+| Touch + mouse/keyboard input complexity | Three input sources increase testing surface | Medium | `InputState` abstraction layer normalizes all inputs; keyboard+mouse is primary, touch is secondary; test each independently |
+| `float` precision at 100 km zone edges | Projectile hit detection jitter, docking inaccuracy at distant stations (~8 mm precision at 100,000 units) | Medium | Server stores positions as `double` (or periodic origin-rebase); client uses camera-relative origin-rebasing (Phase 3C.4) for GPU-side rendering; state broadcaster sends positions relative to player camera |
+| NeuronCore WinRT dependency breaks server containers | `NeuronCore.h` includes WinRT projections; `TasksCore.h` uses WinRT thread pool timers; Windows Server Core may not have these APIs | High | Phase 1.13 splits NeuronCore headers: `NeuronCoreBase.h` (server-safe) vs. `NeuronCoreWinRT.h` (client-only); `TasksCore` gets Win32 `CreateTimerQueueTimer` fallback |
+| No shader-visible descriptor heap management | Bloom post-processing (Phase 3D) and future SRV-based effects cannot bind resources to shaders | High | Phase 3A.5 creates shader-visible descriptor heap ring allocator before any post-processing code |
+| `SpriteBatch` missing for Phase 8 UI | HUD/UI rendering has no sprite batcher to draw text or icons | Medium | Phase 3D.3 adds `SpriteBatch` (either custom or DirectXTK12 NuGet) before Phase 8 begins |
+| `ASyncLoader::WaitForLoad()` busy-spins | Calling on main thread burns a full CPU core doing nothing | Low | Never call `WaitForLoad()` from main thread; use `co_await` in `GameApp::Startup()` coroutine; document this constraint (Phase 6.6) |
+| `DataReader`/`DataWriter` hardcoded to 1400 bytes | Zone definition files and large data sets cannot be loaded via these classes | High | Phase 1.12 extends `BinaryFile` with `WriteFile` and adds `BinaryDataReader`/`BinaryDataWriter` helpers over `byte_buffer_t` for disk I/O; `DataReader`/`DataWriter` remain network-only |
+| No GPU default-heap management for static geometry | Vertex/index buffers remain in upload heap (CPU-visible, slow GPU reads) instead of being promoted to default heap | Medium | Phase 3A.6 adds `GpuResourceManager` for upload → default-heap copy; mesh loading uses this for all static buffers |
+
+---
+
+## 9. Conventions & Standards
+
+All code follows the established codebase conventions documented in `.github/copilot-instructions.md`:
+
+| Rule | Example |
+|---|---|
+| Files: `PascalCase.h` / `PascalCase.cpp` | `EntityPool.h`, `ShipRenderer.cpp`, `GameTypes/SpaceObject.h` |
+| Classes/Functions: `PascalCase` | `class SpaceObjectManager`, `void ProcessInputs()` |
+| Members: `m_` prefix | `m_position`, `m_velocity` |
+| Globals: `g_` prefix | `g_app` |
+| Constants: `UPPER_SNAKE_CASE` | `MAX_ENTITIES`, `DATALOAD_SIZE` |
+| Assertions: `ASSERT`, `DEBUG_ASSERT` | `ASSERT(handle.IsValid())` |
+| Logging: `Neuron::DebugTrace` | `DebugTrace("Entity {} spawned\n", id)` |
+| Fatal: `Neuron::Fatal` | `Neuron::Fatal("Pool exhausted")` |
+| COM pointers: `winrt::com_ptr` | `com_ptr<ID3D12Resource>` |
+| SIMD vectors as params: `FXMVECTOR` + `XM_CALLCONV` | `void XM_CALLCONV SetPosition(FXMVECTOR _pos)` |
+| Storage vectors: `XMFLOAT3`, `GameVector3` | struct member `XMFLOAT3 m_position` |
+| PCH: every `.cpp` starts with `#include "pch.h"` | — |
+| New renderers: GameRender project, not NeuronClient | `GameRender/ShipRenderer.h` |
+| Shared data types: NeuronCore/GameTypes/ | `NeuronCore/GameTypes/EntityHandle.h`, `NeuronCore/GameTypes/SpaceObject.h` |
+| Simulation systems: GameLogic (server-only) | `GameLogic/MovementSystem.h`, `GameLogic/CombatSystem.h` |
+| NeuronCore: modern C++ (`std::string_view`, `constexpr`, `[[nodiscard]]`, `noexcept`) | — |
+| Legacy projects (NeuronClient): raw pointers, C-style strings where existing patterns dictate | — |
+| GameLogic (new server code): modern C++ like NeuronCore | — |
+| Enum iteration: use `ENUM_HELPER` from `NeuronHelper.h` | `ENUM_HELPER(SpaceObjectCategory, SpaceObject, Turret)` |
+| Flag enums: use `ENUM_FLAGS_HELPER` for bitwise operators | `ENUM_FLAGS_HELPER(ShipFlags, Engine, Shields)` |
+| Tests: Visual Studio Native Unit Test Framework | `TEST_CLASS`, `TEST_METHOD` |
+| Coroutine startup: `GameApp::Startup()` returns `IAsyncAction` | Use `co_await` for async loading; leverage `ASyncLoader` base class |
+| Input: **keyboard+mouse primary**, touch supported | `InputState` abstracts all input sources into polling API + action mapping; `WM_POINTER` for touch/pen |
+| Data files (network): `DataReader`/`DataWriter` | Network packets only; fixed 1400-byte buffer (`DATALOAD_SIZE`). Do not use for file I/O |
+| Data files (disk): `BinaryFile` + `BinaryDataReader`/`BinaryDataWriter` | `BinaryFile::ReadFile`/`WriteFile` for raw I/O; `BinaryDataReader`/`BinaryDataWriter` wrap `byte_buffer_t` with cursor-based `Read<T>`/`Write<T>` via CRTP `SerializationBase`. No size limit; used for zone defs, object defs, tuning data |
+| Depth buffer: **reverse-Z** | Near plane → large Z, far plane → 0; `D3D12_COMPARISON_FUNC_GREATER_EQUAL`; clear to `0.0f` |
+| Rendering coordinates: **origin-rebased** | Subtract camera world position from entity positions before GPU submission; prevents `float` precision loss at zone edges |
+| `EventManager`: infrequent events only | Do not use for hot-path simulation (movement, collision, combat); use direct calls or per-system callbacks instead |
+| `ASyncLoader::WaitForLoad()`: avoid on main thread | Busy-spins with `yield()`; use `co_await` in coroutine contexts instead |
+| Server headers: `NeuronCoreBase.h` | Server projects include the WinRT-free base header; client projects include full `NeuronCore.h` |
+| Mesh assets: `Assets/Mesh/<CategoryFolder>/<MeshName>.cmo` | Folder per category (e.g., `Hulls/`, `Asteroids/`, `Stations/`); `Hulls/` maps to `Ship` category; mesh name (without `.cmo`) is the key in `MeshCache` and object definitions |

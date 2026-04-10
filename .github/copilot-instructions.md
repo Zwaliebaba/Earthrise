@@ -100,15 +100,18 @@ When context files don't provide specific guidance:
 ## Project-Specific Guidance
 
 - Respect the solution boundaries and dependency graph:
-  - Starstrike depends on NeuronClient, NeuronCore, GameLogic.
-  - NeuronClient depends on NeuronCore, GameLogic.
+  - Earthrise depends on NeuronClient, NeuronCore, GameRender.
+  - NeuronClient depends on NeuronCore.
+  - GameRender depends on NeuronClient, NeuronCore.
+  - EarthRiseServer depends on NeuronServer, NeuronCore, GameLogic.
   - NeuronServer depends on NeuronCore.
-  - GameLogic is standalone.
+  - GameLogic depends on NeuronCore (standalone simulation; server-only, not linked by client).
 - Use `ASSERT` and `DEBUG_ASSERT` for assertions.
 - Use `Neuron::DebugTrace` for debug logging and `Neuron::Fatal` for fatal errors.
 - Files are named `PascalCase.cpp` / `PascalCase.h` and identifiers use `PascalCase` for classes and functions, `m_` for members, `g_` for global pointers, `UPPER_SNAKE_CASE` for constants.
 - Do not add `#include` directives already covered by `pch.h`. All projects use `pch.h` / `pch.cpp`.
-- Legacy code (NeuronClient, GameLogic) uses raw pointers and C-style strings; keep those patterns when editing those areas.
+- Legacy code (NeuronClient) uses raw pointers and C-style strings; keep those patterns when editing those areas.
+- GameLogic is new server-side code; use modern C++ patterns (like NeuronCore).
 - NeuronCore favors modern C++ (e.g., `std::string_view`, `std::format`, `constexpr`, `[[nodiscard]]`, `noexcept`).
 - Rendering: `ImRenderer` is legacy and should not be extended. New textured-quad rendering should target `SpriteBatch`.
 - Game object renderer companions (EntityRenderer, BuildingRenderer, and their registries/implementations like ArmyAntRenderer, TreeBuildingRenderer, ShadowRenderer) should be placed in the GameRender project, not NeuronClient.
