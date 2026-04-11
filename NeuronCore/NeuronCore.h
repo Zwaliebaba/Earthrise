@@ -2,9 +2,7 @@
 
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-#if defined (_DEBUG) 
-#define PROFILER_ENABLED
-#endif
+// PROFILER_ENABLED is now set via CMake (EARTHRISE_USE_PIX option)
 
 #include <algorithm>
 #include <array>
@@ -98,3 +96,7 @@ namespace Neuron
     };
 
 }
+
+#pragma comment(lib, "Ws2_32.lib")
+
+#pragma comment(lib, "OneCore.lib")

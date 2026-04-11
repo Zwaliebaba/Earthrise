@@ -27,7 +27,7 @@ You are an expert planning specialist for C/C++ game projects. Your mission is t
 - Review how similar systems are already implemented (patterns, naming, file layout)
 - Check for global state, singletons, and initialization order dependencies
 - Identify header dependencies — changes to widely-included headers trigger expensive rebuilds
-- Review build system files (`.vcxproj`, `CMakeLists.txt`) for conditional compilation and platform splits
+- Review build system files (`CMakeLists.txt`, `CMakePresets.json`, `vcpkg.json`) for conditional compilation and platform splits
 
 ### 3. Step Breakdown
 Create detailed steps with:
@@ -137,7 +137,7 @@ weapon-fire, collision, and effects subsystems.
 - Modified: `GameLogic/Collision.cpp` — add missile-vs-ship collision handling and AoE damage
 - Modified: `GameLogic/Effects.h/.cpp` — register missile trail and explosion effects
 - Data: new missile entries in ship weapon data files
-- Build: add `Missile.cpp` to `GameLogic.vcxproj` (or `CMakeLists.txt`)
+- Build: add `Missile.cpp` to `GameLogic/CMakeLists.txt`
 
 ## Implementation Steps
 
@@ -154,7 +154,7 @@ weapon-fire, collision, and effects subsystems.
 2. **Implement missile update and steering** (File: GameLogic/Missile.cpp)
    - Action: Implement `missileInit()`, `missileUpdate(float dt)`,
      `missileSpawn(...)`, `missileDestroy(index)`. Include `pch.h` first.
-     Add file to `GameLogic.vcxproj`.
+     Add file to `GameLogic/CMakeLists.txt`.
    - Why: Self-contained update loop; can be unit-tested in isolation
    - Dependencies: Step 1
    - Build impact: Low — new translation unit

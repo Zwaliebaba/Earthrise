@@ -10,32 +10,36 @@
 namespace Neuron
 {
   template <class... Types>
-  void DebugTrace([[maybe_unused]] const std::string_view _fmt, [[maybe_unused]] Types&&... _args)
+  void DebugTrace(const std::string_view _fmt, Types&&... _args)
   {
 #ifdef _DEBUG
     const std::string message = vformat(_fmt, std::make_format_args(_args...));
     OutputDebugStringA(message.c_str());
+#else
+    __noop(_fmt);
 #endif
   }
 
   template <class... Types>
-  void DebugTrace([[maybe_unused]] const std::wstring_view _fmt, [[maybe_unused]] Types&&... _args)
+  void DebugTrace(const std::wstring_view _fmt, Types&&... _args)
   {
 #ifdef _DEBUG
     const std::wstring message = vformat(_fmt, std::make_wformat_args(_args...));
     OutputDebugStringW(message.c_str());
+#else
+    __noop(_fmt);
 #endif
   }
 
   template <class... Types>
-  [[noreturn]] void Fatal([[maybe_unused]] const std::format_string<Types...> _fmt, [[maybe_unused]] Types&&... _args)
+  [[noreturn]] void Fatal(const std::format_string<Types...> _fmt, Types&&... _args)
   {
     __debugbreak();
     throw std::exception("Fatal Error");
   }
 
   template <class... Types>
-  [[noreturn]] void Fatal([[maybe_unused]] const std::wformat_string<Types...> _fmt, [[maybe_unused]] Types&&... _args)
+  [[noreturn]] void Fatal(const std::wformat_string<Types...> _fmt, Types&&... _args)
   {
     __debugbreak();
     throw std::exception("Fatal Error");

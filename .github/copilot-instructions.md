@@ -15,12 +15,12 @@ When generating code for this repository:
 Before generating code, scan the codebase to identify:
 
 1. **Language Versions**: Detect the exact versions of programming languages in use.
-	- Examine project files such as `Starstrike.slnx` and `*.vcxproj`.
-	- Look for C++ language standard settings (e.g., `stdcpplatest`, `stdcpp20`).
+	- Examine `CMakeLists.txt` files for `CMAKE_CXX_STANDARD` settings.
+	- Check `CMakePresets.json` for build configuration details.
 	- Never use language features beyond the detected version.
 
 2. **Framework Versions**: Identify the exact versions of all frameworks.
-	- Check NuGet package metadata in `packages.config` and project files.
+	- Check `vcpkg.json` for dependency versions and features.
 	- Respect version constraints when generating code.
 	- Never suggest features not available in the detected framework versions.
 
@@ -114,6 +114,33 @@ When context files don't provide specific guidance:
 - GameLogic is new server-side code; use modern C++ patterns (like NeuronCore).
 - NeuronCore favors modern C++ (e.g., `std::string_view`, `std::format`, `constexpr`, `[[nodiscard]]`, `noexcept`).
 - Rendering: `ImRenderer` is legacy and should not be extended. New textured-quad rendering should target `SpriteBatch`.
-- Game object renderer companions (EntityRenderer, BuildingRenderer, and their registries/implementations like ArmyAntRenderer, TreeBuildingRenderer, ShadowRenderer) should be placed in the GameRender project, not NeuronClient.
-- Build and verify after changes using the existing solution and configurations.
-- Do not split NeuronCore headers. The server is allowed to use WinRT APIs. NeuronServer.h should include NeuronCore.h directly. Do not create NeuronCoreBase.h or guard WinRT features with NEURON_HAS_WINRT.
+- Game object renderer companions (per-category renderers like `ShipRenderer`, `AsteroidRenderer`, `StationRenderer`, and supporting types like `SpaceObjectRenderer`, `MeshCache`, `Camera`) should be placed in the GameRender project, not NeuronClient.
+- Shared entity data types (`SpaceObjectCategory`, `EntityHandle`, `SpaceObject` struct, per-category data structs) belong in `NeuronCore/GameTypes/`.
+- Simulation systems (movement, collision, combat, AI, spawning) belong in `GameLogic` (server-only).
+- Build and verify after changes using CMake (`cmake --build --preset x64-debug` and `cmake --build --preset x64-release`).
+
+## Data Serialization
+
+- **Network packets**: Use `DataReader`/`DataWriter` — fixed 1400-byte buffer (`DATALOAD_SIZE`). Do not use for file I/O.
+- **Disk I/O**: Use `BinaryFile::ReadFile`/`WriteFile` for raw binary I/O. Use `BinaryDataReader`/`BinaryDataWriter` (wrapping `byte_buffer_t` with cursor-based `Read<T>`/`Write<T>` via CRTP `SerializationBase`) for structured deserialization of zone definitions, object definitions, and tuning data. No size limit.
+- Enum iteration: use `ENUM_HELPER` from `NeuronHelper.h` for sequential enums; use `ENUM_FLAGS_HELPER` for bitwise flag enums.
+
+## Rendering Conventions
+
+- **Depth buffer**: Reverse-Z — near plane maps to large Z, far plane to 0; use `D3D12_COMPARISON_FUNC_GREATER_EQUAL`; clear depth to `0.0f`. Prevents z-fighting at the 20 km draw distance.
+- **Rendering coordinates**: Origin-rebased — subtract camera world position from all entity positions before GPU submission. Prevents `float` precision loss at zone edges (100 km zone).
+- **No textures**: The flat-color pipeline assigns colors at runtime per-object/per-material. CMO meshes provide geometry only.
+- **Mesh assets**: `Assets/Mesh/<CategoryFolder>/<MeshName>.cmo` — folder per category (e.g., `Hulls/`, `Asteroids/`, `Stations/`); `Hulls/` maps to `Ship` category. Mesh name (without `.cmo`) is the key in `MeshCache` and object definitions.
+- **UI rendering**: `RenderCanvas()` composites HUD/UI on top of the 3D scene (same command list, same render target, no intermediate clear between `RenderScene()` and `RenderCanvas()`). UI uses `SpriteBatch` for textured quads and flat-color geometry for Darwinia-style chrome.
+
+## Performance Constraints
+
+- **`EventManager`**: Uses `std::scoped_lock` on every call — do not use for hot-path simulation systems (movement, collision, combat). Use direct function calls or per-system callbacks instead. Reserve `EventManager` for infrequent events only (player login, chat, docking, session management).
+- **`ASyncLoader::WaitForLoad()`**: Busy-spins with `std::this_thread::yield()` — never call on the main thread. Use `co_await` in coroutine contexts (e.g., `GameApp::Startup()`) instead.
+- **Coroutine startup**: `GameApp::Startup()` returns `Windows::Foundation::IAsyncAction`. Use `co_await` for async asset loading and leverage the `ASyncLoader` base class for loading-state tracking.
+
+## Server Conventions
+
+- **Server headers**: Server projects include `NeuronCoreBase.h` (pure C++ STL + Win32 + Winsock — no WinRT projections). Client projects include full `NeuronCore.h` (adds WinRT projections).
+- **GameLogic is server-only**: Full simulation code (movement, collision, combat, AI) lives here. Client never links GameLogic.
+- **Shared types in NeuronCore/GameTypes**: Entity data types needed by both client (for deserialization/rendering) and server (for simulation) are defined here.

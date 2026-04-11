@@ -98,7 +98,7 @@ namespace Neuron::Tasks
        * Sets the currently executing thread's name to where supported; useful
        * for debugging.
        */
-      static void setName(const std::string& /*name*/) {}
+      static void setName(const std::string& name) {}
 
       /*
        * Returns the number of processors/cores configured and active on this machine.

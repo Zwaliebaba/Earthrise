@@ -9,9 +9,9 @@ namespace Neuron
 // Does NOT provide bitwise operators — use ENUM_FLAGS_HELPER for flag enums.
 #define ENUM_HELPER(T, S, E)                                                                                                                         \
    T inline operator ++(T& _value) noexcept { return _value = static_cast<T>(static_cast<std::underlying_type_t<T>>(_value) + 1); }                  \
-   T inline operator ++(T& _value, int) noexcept { T old = _value; _value = static_cast<T>(static_cast<std::underlying_type_t<T>>(_value) + 1); return old; } \
+   T inline operator ++(T& _value, int) noexcept { return _value = static_cast<T>(static_cast<std::underlying_type_t<T>>(_value) + 1); }             \
    T inline operator --(T& _value) noexcept { return _value = static_cast<T>(static_cast<std::underlying_type_t<T>>(_value) - 1); }                  \
-   T inline operator --(T& _value, int) noexcept { T old = _value; _value = static_cast<T>(static_cast<std::underlying_type_t<T>>(_value) - 1); return old; } \
+   T inline operator --(T& _value, int) noexcept { return _value = static_cast<T>(static_cast<std::underlying_type_t<T>>(_value) - 1); }             \
    inline T operator*(T _type) noexcept { return _type; }                                                                                            \
    constexpr size_t SizeOf##T() noexcept { return static_cast<size_t>(T::E) + 1; }                                                                   \
    class It##T                                                                                                                                 \

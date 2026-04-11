@@ -27,14 +27,14 @@
 
 ## 1. Current State Analysis
 
-### Solution Structure (`Earthrise.slnx`)
+### Project Structure (CMake)
 
 | Project | Type | Role | Dependencies |
 |---|---|---|---|
 | **NeuronCore** | Static lib | Engine foundation: math, timers, events, file I/O, async, debug, data reader/writer, tasks/threads | — |
 | **NeuronServer** | Static lib | Server-side engine layer (stub — contains only `pch.h` → `NeuronServer.h` → `NeuronCore.h`) | NeuronCore |
 | **NeuronClient** | Static lib | Client engine: DirectX 12 graphics core, descriptor heaps, audio engine, sound effects, PIX profiling | NeuronCore |
-| **Earthrise** | Application (MSIX-packaged WinUI desktop) | Client executable: `GameApp` (extends `GameMain`), main loop, windowing | NeuronClient, NeuronCore |
+| **Earthrise** | Win32 desktop application | Client executable: `GameApp` (extends `GameMain`), main loop, windowing | NeuronClient, NeuronCore |
 | **EarthRiseServer** | Console application | Server executable (empty `main()`) | NeuronServer, NeuronCore |
 
 ### What Already Exists (Boilerplate to Reuse)
@@ -66,11 +66,11 @@
 
 | Component | Version |
 |---|---|
-| C++ Standard | `stdcpplatest` (VS 18.x / v145) or `stdcpp17` (VS < 18) |
-| Windows App SDK | 1.8.260317003 |
-| CppWinRT | 2.0.250303.1 |
-| Windows SDK Build Tools | 10.0.28000.1721 |
-| PIX Event Runtime | 1.0.240308001 |
+| Build System | CMake 3.28+ (Ninja or Visual Studio generator) with vcpkg toolchain |
+| C++ Standard | C++23 (`CMAKE_CXX_STANDARD 23`) |
+| CppWinRT | via vcpkg (`cppwinrt` package) |
+| PIX Event Runtime | via vcpkg (optional feature `pix`) |
+| CRT Linkage | Static (`/MT`, `/MTd`) |
 | Platform | x64 only |
 | Min Windows Version | 10.0.17763.0 |
 
@@ -79,8 +79,8 @@
 | Component | Notes |
 |---|---|
 | `NetLib.h` | Required by `DataReader.h`/`DataWriter.h`; must define `DATALOAD_SIZE` and network protocol primitives |
-| `GameLogic` project | Mentioned in copilot instructions as a standalone project; does not exist in solution |
-| `GameRender` project | Mentioned in copilot instructions for object renderers; does not exist in solution |
+| `GameLogic` project | Mentioned in copilot instructions as a standalone project; does not exist in the CMake build yet |
+| `GameRender` project | Mentioned in copilot instructions for object renderers; does not exist in the CMake build yet |
 | Entity System | No entity/component/handle infrastructure |
 | CMO Loader | 65 `.cmo` meshes exist under `Assets/Mesh/<type>/` but no loader code exists |
 | Rendering Pipeline | No mesh rendering, no shaders beyond swap-chain present |
@@ -115,7 +115,7 @@
 | R6 | Concurrent players | **Start with 100** per server instance |
 | R7 | Persistence | **Objects and locations** — player fleet composition, ship loadouts, positions, inventory |
 | R8 | Authentication | **Custom login** (username/password or token-based, stored in Azure SQL) |
-| R9 | CI/CD | **Visual Studio builds** — no external pipeline yet; Phase 10 will add automated build/deploy |
+| R9 | CI/CD | **CMake builds** (Ninja or VS generator via presets) — no external pipeline yet; Phase 10 will add automated build/deploy |
 
 ### ⚠️ Camera Design Note
 
@@ -298,7 +298,7 @@ ENUM_HELPER(SpaceObjectCategory, SpaceObject, Turret)
 
 ## 6. Phase Breakdown
 
-Each phase is designed to produce a **buildable, testable** increment. No phase should leave the solution in a broken state.
+Each phase is designed to produce a **buildable, testable** increment. No phase should leave the project in a broken state.
 
 ---
 
@@ -313,18 +313,18 @@ Each phase is designed to produce a **buildable, testable** increment. No phase 
 | 1.1 | Create `NetLib.h` — define `DATALOAD_SIZE = 1400` (MTU-safe UDP), packet header struct, message ID enum, UDP socket primitives | NeuronCore | `NetLib.h` |
 | 1.2 | Verify `DataReader` / `DataWriter` compile with new `NetLib.h` | NeuronCore | — |
 | 1.3 | **Split `ENUM_HELPER` & fix postfix `++`** — refactor `NeuronHelper.h`: `ENUM_HELPER` provides sequential operators (++, --, iterator, range, `SizeOf`); new `ENUM_FLAGS_HELPER` adds bitwise operators (`\|`, `&`, `^`, `~`, `!`). Sequential enums like `SpaceObjectCategory` use `ENUM_HELPER`; flag enums use `ENUM_FLAGS_HELPER`. **Bug fix**: the existing postfix `operator++(T&, int)` returns the *new* value instead of the pre-increment value — fix to return old value before incrementing. Also mark redundant type-specific methods in `DataWriter` (e.g., `WriteInt16`, `WriteFloat`) as `[[deprecated]]` in favor of the generic `Write<T>()` template | NeuronCore | `NeuronHelper.h`, `DataWriter.h` |
-| 1.4 | Create **GameLogic** static lib project (server-only simulation), add to solution, configure include paths (includes NeuronCore) | GameLogic | `GameLogic.vcxproj`, `pch.h`, `pch.cpp`, `GameLogic.h` |
-| 1.5 | Create **GameRender** static lib project, add to solution, configure include paths (includes NeuronClient, NeuronCore) | GameRender | `GameRender.vcxproj`, `pch.h`, `pch.cpp`, `GameRender.h` |
-| 1.6 | Create **EarthRiseTests** native unit test project, add to solution | EarthRiseTests | `EarthRiseTests.vcxproj`, `pch.h`, `pch.cpp` |
-| 1.7 | Update `EarthRiseServer.vcxproj` to reference GameLogic (server-only) | — | `.vcxproj` edit |
-| 1.8 | Update `Earthrise.vcxproj` to reference GameRender (client-only) | — | `.vcxproj` edit |
+| 1.4 | Create **GameLogic** static lib project (server-only simulation), add `add_subdirectory(GameLogic)` to root `CMakeLists.txt`, configure include paths (includes NeuronCore) | GameLogic | `CMakeLists.txt`, `pch.h`, `pch.cpp`, `GameLogic.h` |
+| 1.5 | Create **GameRender** static lib project, add `add_subdirectory(GameRender)` to root `CMakeLists.txt`, configure include paths (includes NeuronClient, NeuronCore) | GameRender | `CMakeLists.txt`, `pch.h`, `pch.cpp`, `GameRender.h` |
+| 1.6 | Create **EarthRiseTests** native unit test project, add `add_subdirectory(EarthRiseTests)` to root `CMakeLists.txt` | EarthRiseTests | `CMakeLists.txt`, `pch.h`, `pch.cpp` |
+| 1.7 | Update `EarthRiseServer/CMakeLists.txt` to link GameLogic (server-only) | — | `CMakeLists.txt` edit |
+| 1.8 | Update `Earthrise/CMakeLists.txt` to link GameRender (client-only) | — | `CMakeLists.txt` edit |
 | 1.9 | **Fix `RenderCanvas()` call** — add `main->RenderCanvas()` between `RenderScene()` and `Graphics::Core::Present()` in `Earthrise/WinMain.cpp`. Currently `RenderCanvas()` is defined in `GameMain.h` but never called; Phase 8 depends on it for HUD/UI rendering. **Note**: `RenderCanvas()` renders into the *same* command list and render target as `RenderScene()` — there is no intermediate clear. It composites UI on top of the 3D scene. If a separate LDR render target is needed for tone-mapping, that infrastructure must be added in Phase 3D alongside bloom | Earthrise | `WinMain.cpp` |
 | 1.10 | Create `NeuronCore/GameTypes/` header group — `EntityHandle.h`, `SpaceObjectCategory.h` stubs (populated in Phase 2) | NeuronCore | `GameTypes/` headers |
-| 1.11 | Verify full solution builds in Debug and Release x64 | — | — |
+| 1.11 | Verify full CMake build in Debug and Release x64 | — | — |
 | 1.12 | **Extend `FileSys`/`BinaryFile`** — add `BinaryFile::WriteFile(const std::wstring&, const byte_buffer_t&)` for writing binary data to disk. Create `SerializationBase.h` — a CRTP base class template providing `Read<T>`/`Write<T>` over `byte_buffer_t` (`std::vector<uint8_t>`), shared by both `DataReader`/`DataWriter` (network, fixed 1400-byte) and new `BinaryDataReader`/`BinaryDataWriter` helpers (disk, unlimited). `BinaryFile::ReadFile` already returns `byte_buffer_t`; the new helpers wrap a `byte_buffer_t` with a cursor for structured deserialization. Not constrained by `DATALOAD_SIZE`. `DataReader`/`DataWriter` remain for network packets only | NeuronCore | `FileSys.h` (extended), `FileSys.cpp` (extended), `SerializationBase.h` |
 | 1.13 | **Split NeuronCore headers for server compatibility** — `NeuronCore.h` currently includes WinRT projections (`winrt/Windows.Foundation.Collections.h`, `winrt/Windows.Globalization.h`, etc.) and `TasksCore.h` uses `Windows::System::Threading::ThreadPoolTimer`. Create `NeuronCoreBase.h` (pure C++ STL + Win32 + Winsock — server-safe) and `NeuronCoreWinRT.h` (adds WinRT projections — client-only). `NeuronServer/pch.h` includes `NeuronCoreBase.h`; `NeuronClient/pch.h` includes full `NeuronCore.h`. Add a `CreateTimerQueueTimer`-based fallback in `TasksCore` for server builds | NeuronCore, NeuronServer | `NeuronCoreBase.h`, `NeuronCoreWinRT.h`, `TasksCore.h/.cpp` edits |
 | 1.14 | **Verify swap chain presentation mode** — confirm `Graphics::Core::Present()` uses `DXGI_SWAP_EFFECT_FLIP_DISCARD` with configurable VSync (pass `syncInterval = 0` for uncapped, `1` for VSync). Document the current behavior. The main loop spin (`PeekMessage` without `Sleep`) relies on VSync for frame pacing; add a config option for uncapped mode | Earthrise | `WinMain.cpp`, `GraphicsCore.cpp` audit |
-| 1.15 | **Verify full solution builds in Debug and Release x64** (re-verify after 1.12–1.14 changes) | — | — |
+| 1.15 | **Verify full CMake build in Debug and Release x64** (re-verify after 1.12–1.14 changes) | — | — |
 
 #### Tests (Phase 1)
 
@@ -442,7 +442,7 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 |---|---|---|---|
 | 3D.1 | **Post-processing: Bloom** — extract bright pixels above threshold, Gaussian blur, additive blend; critical for Darwinia glow on weapons/engines/explosions | GameRender | `PostProcess.h/.cpp`, `BloomExtractPS.hlsl`, `BloomBlurPS.hlsl`, `BloomCompositePS.hlsl` |
 | 3D.2 | **Tactical Grid** — optional wireframe reference plane for fleet command mode; rendered at a configurable Y-level; cyan/blue with distance fade; toggled on/off by player | GameRender | `TacticalGrid.h/.cpp`, `GridVS.hlsl`, `GridPS.hlsl` |
-| 3D.3 | **SpriteBatch** — Phase 8 UI rendering depends on a `SpriteBatch` for textured quads (text glyphs, icons). Either implement a minimal DX12 sprite batcher in GameRender or integrate DirectXTK12’s `SpriteBatch` as a NuGet dependency. Must support the existing single command list model. Provide `Begin()`/`Draw()`/`End()` API with per-sprite transforms | GameRender | `SpriteBatch.h`, `SpriteBatch.cpp` (or DirectXTK12 NuGet) |
+| 3D.3 | **SpriteBatch** — Phase 8 UI rendering depends on a `SpriteBatch` for textured quads (text glyphs, icons). Either implement a minimal DX12 sprite batcher in GameRender or integrate DirectXTK12's `SpriteBatch` as a vcpkg dependency. Must support the existing single command list model. Provide `Begin()`/`Draw()`/`End()` API with per-sprite transforms | GameRender | `SpriteBatch.h`, `SpriteBatch.cpp` (or DirectXTK12 via vcpkg) |
 
 **Tests (Phase 3D)**:
 - Integration: Bloom post-process on a bright object; visually verify glow effect
@@ -620,7 +620,7 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 | 10.3 | **Health probes** — HTTP health/readiness endpoints in server (or TCP liveness) | EarthRiseServer | `HealthCheck.h/.cpp` |
 | 10.4 | **Configuration** — server reads zone config, tick rate, max players from environment variables / ConfigMap | EarthRiseServer | `ServerConfig.h/.cpp` |
 | 10.5 | **Persistent storage** — **Azure SQL (MS SQL)** for player data (accounts, ship loadouts, inventory, currency); optional Redis for session cache | EarthRiseServer | `Database.h/.cpp` (abstraction layer), `SqlDatabase.h/.cpp` |
-| 10.6 | **CI/CD pipeline** — currently builds in Visual Studio only; add automated MSBuild → test → container push → AKS deploy (GitHub Actions or Azure DevOps) | `.github/workflows/` or `azure-pipelines.yml` | `build-deploy.yml` |
+| 10.6 | **CI/CD pipeline** — currently builds via CMake presets; add automated CMake configure/build → test → container push → AKS deploy (GitHub Actions or Azure DevOps) | `.github/workflows/` or `azure-pipelines.yml` | `build-deploy.yml` |
 | 10.7 | **Monitoring** — Azure Monitor / Application Insights integration for server metrics, crash reporting | EarthRiseServer | `Telemetry.h/.cpp` |
 | 10.8 | **Load balancer** — Azure Load Balancer in front of AKS for player connection distribution | `deploy/k8s/` | `service.yaml` (LoadBalancer type) |
 | 10.9 | **Database schema** — Azure SQL schema: accounts (custom auth, hashed passwords), player fleets, ship loadouts, inventory, object positions; migration scripts | `deploy/sql/` | `schema.sql`, `migrations/` |
@@ -652,7 +652,7 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 | 11.7 | **Bandwidth optimization** — delta compression, area-of-interest filtering, dead reckoning | NeuronCore, EarthRiseServer |
 | 11.8 | **Stress testing** — simulated 100+ clients, verify server stability | Test tooling |
 | 11.9 | **Accessibility pass** — colorblind-friendly palette options, scalable HUD | Earthrise |
-| 11.10 | **Final build verification** — Debug + Release × all target configs | CI pipeline |
+| 11.10 | **Final build verification** — Debug + Release × all CMake presets (Ninja, VS generator) | CI pipeline |
 
 ---
 
@@ -715,7 +715,7 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 | UDP reliability layer complexity | Networking delayed | Medium | Start with simple sequence/ACK; only login/chat/inventory need reliability; state updates are fire-and-forget |
 | UDP packet loss causes jerky movement | Visual quality | Medium | Entity interpolation + dead reckoning on client; redundant state in each snapshot |
 | Windows containers on AKS limited support | Deployment blocked | Medium | Evaluate Windows node pools early; server targets Windows Server Core containers exclusively |
-| `stdcpplatest` features vary between VS versions | Build breaks on different machines | Low | Pin to `stdcpp20` for shared code; use `stdcpplatest` only in projects that need it |
+| C++23 feature support varies between compiler versions | Build breaks on different machines | Low | CMake enforces `CMAKE_CXX_STANDARD 23` with `CMAKE_CXX_STANDARD_REQUIRED ON`; pin to a known MSVC toolset version if needed |
 | Server tick rate drops under load | Gameplay quality | High | Profile early (Phase 5), budget per-system, amortize AI across frames |
 | No existing test infrastructure | Bugs ship undetected | Medium | Phase 1 creates test project; require tests for every phase |
 | `NetLib.h` doesn't exist yet; DataReader/DataWriter won't compile | Build broken | High | Phase 1 priority — create `NetLib.h` first |
@@ -731,7 +731,7 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 | `float` precision at 100 km zone edges | Projectile hit detection jitter, docking inaccuracy at distant stations (~8 mm precision at 100,000 units) | Medium | Server stores positions as `double` (or periodic origin-rebase); client uses camera-relative origin-rebasing (Phase 3C.4) for GPU-side rendering; state broadcaster sends positions relative to player camera |
 | NeuronCore WinRT dependency breaks server containers | `NeuronCore.h` includes WinRT projections; `TasksCore.h` uses WinRT thread pool timers; Windows Server Core may not have these APIs | High | Phase 1.13 splits NeuronCore headers: `NeuronCoreBase.h` (server-safe) vs. `NeuronCoreWinRT.h` (client-only); `TasksCore` gets Win32 `CreateTimerQueueTimer` fallback |
 | No shader-visible descriptor heap management | Bloom post-processing (Phase 3D) and future SRV-based effects cannot bind resources to shaders | High | Phase 3A.5 creates shader-visible descriptor heap ring allocator before any post-processing code |
-| `SpriteBatch` missing for Phase 8 UI | HUD/UI rendering has no sprite batcher to draw text or icons | Medium | Phase 3D.3 adds `SpriteBatch` (either custom or DirectXTK12 NuGet) before Phase 8 begins |
+| `SpriteBatch` missing for Phase 8 UI | HUD/UI rendering has no sprite batcher to draw text or icons | Medium | Phase 3D.3 adds `SpriteBatch` (either custom or DirectXTK12 via vcpkg) before Phase 8 begins |
 | `ASyncLoader::WaitForLoad()` busy-spins | Calling on main thread burns a full CPU core doing nothing | Low | Never call `WaitForLoad()` from main thread; use `co_await` in `GameApp::Startup()` coroutine; document this constraint (Phase 6.6) |
 | `DataReader`/`DataWriter` hardcoded to 1400 bytes | Zone definition files and large data sets cannot be loaded via these classes | High | Phase 1.12 extends `BinaryFile` with `WriteFile` and adds `BinaryDataReader`/`BinaryDataWriter` helpers over `byte_buffer_t` for disk I/O; `DataReader`/`DataWriter` remain network-only |
 | No GPU default-heap management for static geometry | Vertex/index buffers remain in upload heap (CPU-visible, slow GPU reads) instead of being promoted to default heap | Medium | Phase 3A.6 adds `GpuResourceManager` for upload → default-heap copy; mesh loading uses this for all static buffers |

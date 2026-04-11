@@ -41,8 +41,8 @@ iwyu_tool.py -p . -- -Xiwyu --mapping_file=game.imp
 ```bash
 # Find symbols defined but never referenced outside their translation unit
 grep -rn "static.*functionName" src/
-# Find orphaned source files not listed in any .vcxproj / CMakeLists.txt
-diff <(find src/ -name '*.cpp' | sort) <(grep -ohP '[\\w/]+\\.cpp' *.vcxproj CMakeLists.txt | sort)
+# Find orphaned source files not listed in any CMakeLists.txt
+diff <(find src/ -name '*.cpp' | sort) <(grep -ohP '[\\w/]+\\.cpp' **/CMakeLists.txt | sort)
 # Search for #if 0 blocks (candidate dead code)
 grep -rn '#if\s*0' src/
 ```

@@ -3,9 +3,6 @@
 
 int WINAPI wWinMain(HINSTANCE _hInstance, HINSTANCE _hPrevInstance, LPWSTR _cmdLine, int _iCmdShow)
 {
-  UNREFERENCED_PARAMETER(_hPrevInstance);
-  UNREFERENCED_PARAMETER(_cmdLine);
-
 #if defined(_DEBUG)
   _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
@@ -40,7 +37,6 @@ int WINAPI wWinMain(HINSTANCE _hInstance, HINSTANCE _hPrevInstance, LPWSTR _cmdL
 
       Graphics::Core::Prepare();
       main->RenderScene();
-      main->RenderCanvas();
       Graphics::Core::Present();
     }
   }

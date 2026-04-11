@@ -20,20 +20,20 @@ namespace Neuron
     }
 
     // Write a single byte
-    [[deprecated("Use Write<char>() instead")]] void WriteChar(const char _value)
+    void WriteChar(const char _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteChar out of bounds");
       m_data[m_size++] = static_cast<std::byte>(_value);
     }
 
-    [[deprecated("Use Write<uint8_t>() instead")]] void WriteByte(const uint8_t _value)
+    void WriteByte(const uint8_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteByte out of bounds");
       m_data[m_size++] = static_cast<std::byte>(_value);
     }
 
     // Write an int16
-    [[deprecated("Use Write<int16_t>() instead")]] void WriteInt16(const int16_t _value)
+    void WriteInt16(const int16_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteInt16 out of bounds");
       std::copy_n(reinterpret_cast<const uint8_t*>(&_value), sizeof(_value), reinterpret_cast<uint8_t*>(m_data.data() + m_size));

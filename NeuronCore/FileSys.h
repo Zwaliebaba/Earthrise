@@ -18,7 +18,6 @@ namespace Neuron
   {
     public:
       [[nodiscard]] static byte_buffer_t ReadFile(const std::wstring& _fileName);
-      static bool WriteFile(const std::wstring& _fileName, const byte_buffer_t& _data);
   };
 
   class TextFile : public FileSys

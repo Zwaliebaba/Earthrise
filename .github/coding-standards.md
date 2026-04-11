@@ -1,12 +1,14 @@
 # Coding Standards
 
-These conventions reflect the established patterns in the Starstrike codebase. Follow existing file-local style when a file deviates.
+These conventions reflect the established patterns in the Earthrise codebase. Follow existing file-local style when a file deviates.
 
 ## Language and Toolchain
 
-- Target platform: Windows 10+ (x64), MSIX packaging.
-- Toolset: MSVC v145 (v143 fallback).
-- Standard: `stdcpplatest` (Debug), `stdcpp20` (Release).
+- Target platform: Windows 10+ (x64), Win32 desktop.
+- Build system: CMake 3.28+ with vcpkg toolchain (Ninja or Visual Studio generator).
+- Compiler: MSVC (latest).
+- Standard: C++23 (`CMAKE_CXX_STANDARD 23`).
+- CRT linkage: Static (`/MT`, `/MTd`).
 - Precompiled headers: every project uses `pch.h` / `pch.cpp`.
 
 ## Naming
@@ -39,7 +41,7 @@ These conventions reflect the established patterns in the Starstrike codebase. F
 ## Pointers and Ownership
 
 - Legacy code uses raw pointers and manual `new` / `delete`. Refactor to smart pointers unless requested.
-- New code in NeuronCore and Starstrike should use `std::unique_ptr` or `std::shared_ptr`.
+- New code in NeuronCore and Earthrise should use `std::unique_ptr` or `std::shared_ptr`.
 
 ## COM Smart Pointers
 
@@ -64,7 +66,9 @@ When working inside NeuronCore:
 
 ## Build Verification
 
-- Run a build in both `Debug x64` and `Release x64` after every change.
+- Run a build via CMake in both Debug and Release x64 after every change:
+  - `cmake --build --preset x64-debug`
+  - `cmake --build --preset x64-release`
 - Zero new compiler warnings should be introduced.
 
 ## Documentation Structure
@@ -72,24 +76,18 @@ When working inside NeuronCore:
 The project follows this standard documentation layout:
 
 ```
-Starstrike/
+Earthrise/
 ├── README.md                        # Project overview and quick start
-├── docs/
-│   ├── architecture.md              # Module structure, subsystem design, dependency rules
-│   ├── development-guide.md         # Setup, build, debugging, workflow
-│   └── contributing.md              # PR process, commit messages, review standards
+├── MMO.md                           # Full MMO implementation plan (11 phases)
 ├── .github/
 │   ├── agents.md                    # AI agent instructions and project summary
 │   ├── coding-standards.md          # This file
 │   ├── copilot-instructions.md      # Copilot/AI assistant guidance
 │   └── agents/                      # Specialised AI agent definitions
 │       ├── Architect.agent.md
-│       ├── planner.agent.md
+│       ├── Planner.agent.md
 │       ├── SoftwareEngineer.agent.md
 │       └── RefactorCleaner.agent.md
-├── CI.md                            # Codebase improvement roadmap
-├── MathPlan.md                      # Math type migration plan
-└── MatrixConv.md                    # Matrix convention plan
 ```
 
 ### Documentation Conventions
