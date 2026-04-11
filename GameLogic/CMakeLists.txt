@@ -1,9 +1,14 @@
 # GameLogic — server-only simulation static library
 add_library(GameLogic STATIC
     pch.cpp
+    CollisionSystem.cpp
+    CommandProcessor.cpp
     EntityPool.cpp
+    JumpgateSystem.cpp
+    MovementSystem.cpp
     ObjectDefsLoader.cpp
     SpaceObjectManager.cpp
+    SpatialHash.cpp
 )
 
 target_include_directories(GameLogic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

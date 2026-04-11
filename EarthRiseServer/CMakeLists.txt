@@ -2,9 +2,16 @@
 add_executable(EarthRiseServer
     WinMain.cpp
     pch.cpp
+    ServerLoop.cpp
+    StateBroadcaster.cpp
+    Zone.cpp
+    ZoneLoader.cpp
 )
 
-target_include_directories(EarthRiseServer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(EarthRiseServer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/NeuronServer
+)
 
 # Precompiled header
 target_precompile_headers(EarthRiseServer PRIVATE pch.h)

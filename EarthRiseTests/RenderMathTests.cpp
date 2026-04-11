@@ -5,7 +5,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace DirectX;
 using namespace Neuron::Graphics;
 
-namespace EarthRiseTests
+namespace EarthRiseTests::Rendering
 {
   TEST_CLASS(RenderMathTests)
   {

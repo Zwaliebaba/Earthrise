@@ -4,7 +4,7 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace Neuron;
 
-namespace EarthRiseTests
+namespace EarthRiseTests::Core
 {
   TEST_CLASS(SpaceObjectManagerTests)
   {

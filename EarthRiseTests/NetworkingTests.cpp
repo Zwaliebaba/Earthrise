@@ -4,7 +4,7 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace Neuron;
 
-namespace EarthRiseTests
+namespace EarthRiseTests::Networking
 {
   // ── Packet framing tests ──────────────────────────────────
   TEST_CLASS(PacketFramingTests)

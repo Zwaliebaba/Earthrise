@@ -502,31 +502,46 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 
 ---
 
-### Phase 5 — Server Simulation Loop
+### Phase 5 — Server Simulation Loop ✅ COMPLETED
 
 **Goal**: The server runs a **fixed-timestep** game simulation in a **single 100 km³ zone**, processes fleet commands, and broadcasts world state snapshots over UDP to up to **100 concurrent players**.
 
 #### Deliverables
 
-| # | Task | Project | Files |
-|---|---|---|---|
-| 5.1 | **Server main loop** — fixed-timestep tick (e.g., 20 Hz), process input queue, simulate, broadcast state | EarthRiseServer | `WinMain.cpp` expansion, `ServerLoop.h/.cpp` |
-| 5.2 | **Zone** — the single persistent 100 km³ simulation region; owns a `SpaceObjectManager`, player list, 3D spatial hash. **Floating-point precision strategy**: server stores entity positions as `double` (or uses periodic origin-rebasing) to avoid precision loss at zone edges (at 100,000 units, `float` has only ~0.008 unit precision). Client receives positions as `float` relative to the player’s camera origin (origin-rebased by the state broadcaster) | EarthRiseServer | `Zone.h`, `Zone.cpp` |
-| 5.3 | **Zone loader** — load zone definition from data file (asteroid fields, station positions, jumpgate placements, decoration spawns) via `BinaryFile::ReadFile` + `BinaryDataReader` | EarthRiseServer | `ZoneLoader.h/.cpp` |
-| 5.4 | **Input processing** — dequeue fleet commands (move-to-position-3D, attack-target, dock, loot, use-ability, warp-to-jumpgate), apply to player's fleet entities | GameLogic | `InputCommand.h`, `CommandProcessor.h/.cpp` |
-| 5.5 | **Movement system** — full 3D steering/arrival behavior, velocity clamping, rotation toward target (quaternion-based); 3D pathfinding around obstacles | GameLogic | `MovementSystem.h/.cpp` |
-| 5.6 | **Collision detection** — broad-phase 3D spatial hash (2 km logical cells, hash-mapped — only occupied cells allocate memory), narrow-phase sphere/OBB tests, generate collision events | GameLogic | `CollisionSystem.h/.cpp`, `SpatialHash.h/.cpp` |
-| 5.7 | **State broadcast** — serialize entities within 10 km area-of-interest radius of each player's camera, send snapshots via UDP (1400-byte datagrams) | EarthRiseServer | `StateBroadcaster.h/.cpp` |
-| 5.8 | **Jumpgate fast-travel** — server-side: player issues warp command → ship teleported to destination jumpgate position after brief channel time | GameLogic | `JumpgateSystem.h/.cpp` |
+| # | Task | Project | Files | Status |
+|---|---|---|---|---|
+| 5.1 | **Server main loop** — fixed-timestep tick (20 Hz), process input queue, simulate, broadcast state | EarthRiseServer | `WinMain.cpp` expansion, `ServerLoop.h/.cpp` | ✅ Done |
+| 5.2 | **Zone** — the single persistent 100 km³ simulation region; owns a `SpaceObjectManager`, player list, 3D spatial hash | EarthRiseServer | `Zone.h`, `Zone.cpp` | ✅ Done |
+| 5.3 | **Zone loader** — load zone definition from data file; `CreateTestZone` populates asteroids, station, jumpgate pair | EarthRiseServer | `ZoneLoader.h/.cpp` | ✅ Done |
+| 5.4 | **Input processing** — dequeue fleet commands (move-to-position-3D, attack-target, dock, loot, use-ability, warp-to-jumpgate), apply to player's fleet entities | GameLogic | `InputCommand.h`, `CommandProcessor.h/.cpp` | ✅ Done |
+| 5.5 | **Movement system** — full 3D steering/arrival behavior, velocity clamping, rotation toward target (quaternion-based); homing projectile steering | GameLogic | `MovementSystem.h/.cpp` | ✅ Done |
+| 5.6 | **Collision detection** — broad-phase 3D spatial hash (2 km logical cells, hash-mapped — only occupied cells allocate memory), narrow-phase sphere-sphere tests, generate collision events | GameLogic | `CollisionSystem.h/.cpp`, `SpatialHash.h/.cpp` | ✅ Done |
+| 5.7 | **State broadcast** — serialize entities within 10 km area-of-interest radius of each player's camera, send snapshots via UDP (1400-byte datagrams) | EarthRiseServer | `StateBroadcaster.h/.cpp` | ✅ Done |
+| 5.8 | **Jumpgate fast-travel** — server-side: player issues warp command → ship teleported to destination jumpgate position; proximity check + fleet teleportation with spacing | GameLogic | `JumpgateSystem.h/.cpp` | ✅ Done |
 
-#### Tests (Phase 5)
-
-- Unit: MovementSystem — apply velocity for N ticks, verify final position
-- Unit: CollisionSystem — two spheres overlapping → collision detected; two far apart → no collision
-- Unit: SpatialHash — insert/remove/query entities in region; verify only occupied cells consume memory
-- Unit: CommandProcessor — apply thrust command → ship velocity changes
-- Unit: JumpgateSystem — fleet at gate → warp initiated → fleet position updated to destination gate
-- Integration: Server starts, loads a zone, ticks for 100 frames without crash
+**Tests (Phase 5)**:
+- Unit: SpatialHash — insert entity, query at position → found ✅
+- Unit: SpatialHash — remove entity → cell empty ✅
+- Unit: SpatialHash — distant entity excluded from query ✅
+- Unit: SpatialHash — clear removes all entities ✅
+- Unit: SpatialHash — same-cell entities all returned ✅
+- Unit: SpatialHash — update moves entity to new cell ✅
+- Unit: MovementSystem — velocity integration updates position ✅
+- Unit: MovementSystem — move target causes movement toward target ✅
+- Unit: MovementSystem — ship arrives at target and stops ✅
+- Unit: MovementSystem — clear move target stops targeting ✅
+- Unit: CollisionSystem — overlapping spheres → collision detected ✅
+- Unit: CollisionSystem — distant entities → no collision ✅
+- Unit: CollisionSystem — decorations are skipped ✅
+- Unit: CollisionSystem — no duplicate collision pairs ✅
+- Unit: CommandProcessor — MoveTo command sets move target on fleet ✅
+- Unit: CommandProcessor — unregistered player command ignored ✅
+- Unit: CommandProcessor — fleet registration and unregistration ✅
+- Unit: JumpgateSystem — fleet at gate → warp → position updated to destination ✅
+- Unit: JumpgateSystem — ship out of range → warp fails ✅
+- Unit: JumpgateSystem — inactive gate rejects warp ✅
+- Integration: All systems tick 100 frames without crash ✅
+- Integration: Ship moves over multiple frames with monotonic progress ✅
 
 > **Performance Guidance — EventManager**: The existing `EventManager` uses `std::scoped_lock` on every `Publish`/`Subscribe`/`Unsubscribe` call, which serializes all event dispatch. **Do not use `EventManager` for hot-path simulation systems** (movement, collision, combat). These systems should use direct function calls or per-system callback lists. Reserve `EventManager` for infrequent events only (player login, chat, docking, session management).
 

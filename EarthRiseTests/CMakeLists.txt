@@ -10,9 +10,15 @@ add_library(EarthRiseTests SHARED
     SpaceObjectManagerTests.cpp
     SerializationTests.cpp
     RenderMathTests.cpp
+    SimulationTests.cpp
     # GameLogic sources needed by tests, compiled with dynamic CRT
     ${CMAKE_SOURCE_DIR}/GameLogic/EntityPool.cpp
     ${CMAKE_SOURCE_DIR}/GameLogic/SpaceObjectManager.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/SpatialHash.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/MovementSystem.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/CollisionSystem.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/CommandProcessor.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/JumpgateSystem.cpp
     # GameRender sources needed by tests (CPU-only code, no GPU)
     ${CMAKE_SOURCE_DIR}/GameRender/CmoLoader.cpp
     # NeuronCore networking sources needed by tests
@@ -42,16 +48,8 @@ set_target_properties(EarthRiseTests PROPERTIES
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
 )
 
-# Precompiled header (skip for GameLogic sources compiled into this target)
+# Precompiled header
 target_precompile_headers(EarthRiseTests PRIVATE pch.h)
-set_source_files_properties(
-    ${CMAKE_SOURCE_DIR}/GameLogic/EntityPool.cpp
-    ${CMAKE_SOURCE_DIR}/GameLogic/SpaceObjectManager.cpp
-    ${CMAKE_SOURCE_DIR}/GameRender/CmoLoader.cpp
-    ${CMAKE_SOURCE_DIR}/NeuronCore/ReliableChannel.cpp
-    ${CMAKE_SOURCE_DIR}/NeuronServer/BandwidthManager.cpp
-    PROPERTIES SKIP_PRECOMPILE_HEADERS ON
-)
 
 # No library dependencies — sources are compiled directly with dynamic CRT.
 # System libs are pulled in via #pragma comment(lib, ...) in headers.
@@ -100,6 +98,10 @@ target_compile_definitions(EarthRiseTests PRIVATE _LIB)
 # VS Test Explorer in CMake+Ninja mode only sees CTest entries — the native
 # C++ Unit Test adapter does not scan DLLs for CMake projects.  By registering
 # each method separately, every test appears individually in Test Explorer.
+#
+# Namespace and TEST_CLASS names are extracted from source files so that the
+# CTest name is hierarchical (Namespace.Class.Method), giving Test Explorer
+# a proper tree:  Core > EntityHandleTests > DefaultHandleIsInvalid, etc.
 # ---------------------------------------------------------------------------
 function(discover_msvc_unit_tests TARGET)
     find_program(VSTEST_CONSOLE
@@ -127,17 +129,41 @@ function(discover_msvc_unit_tests TARGET)
             continue()
         endif()
 
-        file(STRINGS "${SOURCE}" TEST_LINES REGEX "TEST_METHOD\\(")
+        # Extract the sub-namespace (e.g., "Core" from "namespace EarthRiseTests::Core")
+        file(STRINGS "${SOURCE}" NS_LINES REGEX "namespace [A-Za-z0-9_]+::[A-Za-z0-9_]+")
+        set(CURRENT_NS "")
+        foreach(NS_LINE ${NS_LINES})
+            if(NS_LINE MATCHES "namespace [A-Za-z0-9_]+::([A-Za-z0-9_]+)")
+                set(CURRENT_NS "${CMAKE_MATCH_1}")
+                break()  # One namespace per file
+            endif()
+        endforeach()
+
+        # Extract TEST_CLASS and TEST_METHOD entries in source order so that
+        # each method is associated with the most recent TEST_CLASS.
+        file(STRINGS "${SOURCE}" TEST_LINES REGEX "(TEST_CLASS|TEST_METHOD)\\(")
+        set(CURRENT_CLASS "")
         foreach(LINE ${TEST_LINES})
-            string(REGEX MATCH "TEST_METHOD\\(([A-Za-z0-9_]+)\\)" _ "${LINE}")
-            set(METHOD_NAME "${CMAKE_MATCH_1}")
-            if(METHOD_NAME)
+            if(LINE MATCHES "TEST_CLASS\\(([A-Za-z0-9_]+)\\)")
+                set(CURRENT_CLASS "${CMAKE_MATCH_1}")
+            elseif(LINE MATCHES "TEST_METHOD\\(([A-Za-z0-9_]+)\\)")
+                set(METHOD_NAME "${CMAKE_MATCH_1}")
+
+                # Build hierarchical name: Namespace.Class.Method
+                if(CURRENT_NS AND CURRENT_CLASS)
+                    set(TEST_NAME "${CURRENT_NS}.${CURRENT_CLASS}.${METHOD_NAME}")
+                elseif(CURRENT_CLASS)
+                    set(TEST_NAME "${CURRENT_CLASS}.${METHOD_NAME}")
+                else()
+                    set(TEST_NAME "${TARGET}.${METHOD_NAME}")
+                endif()
+
                 add_test(
-                    NAME "${TARGET}.${METHOD_NAME}"
+                    NAME "${TEST_NAME}"
                     COMMAND "${VSTEST_CONSOLE}" "$<TARGET_FILE:${TARGET}>"
                             "/Tests:${METHOD_NAME}" /Platform:x64 /InIsolation
                 )
-                set_tests_properties("${TARGET}.${METHOD_NAME}" PROPERTIES
+                set_tests_properties("${TEST_NAME}" PROPERTIES
                     WORKING_DIRECTORY "$<TARGET_FILE_DIR:${TARGET}>"
                 )
             endif()
