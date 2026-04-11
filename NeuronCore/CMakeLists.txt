@@ -7,7 +7,10 @@ add_library(NeuronCore STATIC
     pch.cpp
 )
 
-target_include_directories(NeuronCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(NeuronCore PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/GameMath
+)
 
 # Per-module build output → <module>/<Config>/<Platform>/
 set_target_properties(NeuronCore PROPERTIES

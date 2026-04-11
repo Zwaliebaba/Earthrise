@@ -1,17 +1,21 @@
 # NeuronClient — graphics / audio static library (client only)
 add_library(NeuronClient STATIC
-    AudioEngine.cpp
-    DescriptorHeap.cpp
-    GraphicsCore.cpp
     NeuronClient.cpp
-    SoundCommon.cpp
-    SoundEffect.cpp
-    SoundEffectInstance.cpp
-    WAVFileReader.cpp
     pch.cpp
+    Audio/AudioEngine.cpp
+    Audio/SoundCommon.cpp
+    Audio/SoundEffect.cpp
+    Audio/SoundEffectInstance.cpp
+    Audio/WAVFileReader.cpp
+    Graphics/DescriptorHeap.cpp
+    Graphics/GraphicsCore.cpp
 )
 
-target_include_directories(NeuronClient PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(NeuronClient PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/Audio
+    ${CMAKE_CURRENT_SOURCE_DIR}/Graphics
+)
 
 # Per-module build output → <module>/<Config>/<Platform>/
 set_target_properties(NeuronClient PROPERTIES
