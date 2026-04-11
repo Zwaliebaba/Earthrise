@@ -1,5 +1,8 @@
 # NeuronServer — server-side static library
 add_library(NeuronServer STATIC
+    BandwidthManager.cpp
+    ClientSession.cpp
+    SessionManager.cpp
     pch.cpp
 )
 

@@ -70,16 +70,22 @@
 
 using namespace Neuron;
 
-#include "FileSys.h"
-#include "TimerCore.h"
-#include "NetLib.h"
-#include "DataReader.h"
-#include "DataWriter.h"
-#include "SerializationBase.h"
-
 namespace Neuron
 {
     constexpr uint32_t ENGINE_VERSION = 0x00000001;
 }
+
+#include "FileSys.h"
+#include "TimerCore.h"
+#include "NetLib.h"
+#include "Packet.h"
+#include "DataReader.h"
+#include "DataWriter.h"
+#include "EntityHandle.h"
+#include "SpaceObjectCategory.h"
+#include "Messages.h"
+#include "ReliableChannel.h"
+#include "UdpSocket.h"
+#include "SerializationBase.h"
 
 #pragma comment(lib, "Ws2_32.lib")

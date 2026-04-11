@@ -6,6 +6,7 @@ add_library(EarthRiseTests SHARED
     pch.cpp
     EntityHandleTests.cpp
     EntityPoolTests.cpp
+    NetworkingTests.cpp
     SpaceObjectManagerTests.cpp
     SerializationTests.cpp
     RenderMathTests.cpp
@@ -14,6 +15,10 @@ add_library(EarthRiseTests SHARED
     ${CMAKE_SOURCE_DIR}/GameLogic/SpaceObjectManager.cpp
     # GameRender sources needed by tests (CPU-only code, no GPU)
     ${CMAKE_SOURCE_DIR}/GameRender/CmoLoader.cpp
+    # NeuronCore networking sources needed by tests
+    ${CMAKE_SOURCE_DIR}/NeuronCore/ReliableChannel.cpp
+    # NeuronServer sources needed by tests
+    ${CMAKE_SOURCE_DIR}/NeuronServer/BandwidthManager.cpp
 )
 
 target_include_directories(EarthRiseTests PRIVATE
@@ -26,6 +31,7 @@ target_include_directories(EarthRiseTests PRIVATE
     ${CMAKE_SOURCE_DIR}/NeuronCore
     ${CMAKE_SOURCE_DIR}/NeuronCore/GameMath
     ${CMAKE_SOURCE_DIR}/NeuronCore/GameTypes
+    ${CMAKE_SOURCE_DIR}/NeuronServer
 )
 
 # Per-module build output → <module>/<Config>/<Platform>/
@@ -42,6 +48,8 @@ set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/GameLogic/EntityPool.cpp
     ${CMAKE_SOURCE_DIR}/GameLogic/SpaceObjectManager.cpp
     ${CMAKE_SOURCE_DIR}/GameRender/CmoLoader.cpp
+    ${CMAKE_SOURCE_DIR}/NeuronCore/ReliableChannel.cpp
+    ${CMAKE_SOURCE_DIR}/NeuronServer/BandwidthManager.cpp
     PROPERTIES SKIP_PRECOMPILE_HEADERS ON
 )
 

@@ -1,6 +1,7 @@
 # Earthrise — Win32 desktop client executable
 add_executable(Earthrise WIN32
     GameApp.cpp
+    ServerConnection.cpp
     WinMain.cpp
     pch.cpp
     Earthrise.rc        # embeds app.manifest

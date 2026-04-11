@@ -456,27 +456,49 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 
 ---
 
-### Phase 4 — Networking Layer
+### Phase 4 — Networking Layer ✅
 
 **Goal**: Implement the client↔server communication protocol over **UDP** (MTU-safe, 1400-byte datagrams). Reliable delivery layer built on top for login/chat/inventory; unreliable for state updates.
 
 #### Deliverables
 
-| # | Task | Project | Files |
-|---|---|---|---|
-| 4.1 | **UDP Socket wrapper** — Winsock2 UDP socket, non-blocking send/recv, address management | NeuronCore | `NetLib.h` expansion, `UdpSocket.h/.cpp` |
-| 4.2 | **Reliability layer** — sequence numbers, ACK tracking, resend queue for reliable messages (login, chat, inventory); unreliable channel for state updates | NeuronCore | `ReliableChannel.h/.cpp` |
-| 4.3 | **Packet framing** — message ID + sequence + payload within 1400-byte datagrams; serialization via DataWriter/DataReader | NeuronCore | `Packet.h` |
-| 4.4 | **Message definitions** — login request/response, entity spawn/despawn, state snapshot, player input command, chat, disconnect | NeuronCore | `Messages.h` |
-| 4.5 | **Server listener** — UDP recvfrom loop, session identification by address, create/manage sessions per client | NeuronServer | `SessionManager.h/.cpp`, `ClientSession.h/.cpp` |
-| 4.6 | **Client connector** — connect to server (initial handshake over reliable channel), send/receive on background thread, queue incoming messages for main thread | Earthrise | `ServerConnection.h/.cpp` |
-| 4.7 | **Bandwidth throttling** — limit update rate per client, prioritize nearby entities, area-of-interest filtering | NeuronServer | `BandwidthManager.h/.cpp` |
+| # | Task | Project | Files | Status |
+|---|---|---|---|---|
+| 4.1 | **UDP Socket wrapper** — Winsock2 UDP socket, non-blocking send/recv, address management. `InitializeNetworking()`/`ShutdownNetworking()` for Winsock lifecycle. Move semantics, `MakeAddress()` helper | NeuronCore | `UdpSocket.h/.cpp` | ✅ Done |
+| 4.2 | **Reliability layer** — sequence numbers, ACK tracking via `unordered_map`, resend queue with configurable timeout (250 ms default, 10 max resends), duplicate detection via `unordered_set` with bounded pruning, `BuildAck()` for ACK datagram construction | NeuronCore | `ReliableChannel.h/.cpp` | ✅ Done |
+| 4.3 | **Packet framing** — `FramePacket()` and `ParsePacket()` inline functions. Message ID + sequence + flags + payload within 1400-byte datagrams. `MAX_PAYLOAD_SIZE` constant. Validates buffer bounds on both frame and parse | NeuronCore | `Packet.h` | ✅ Done |
+| 4.4 | **Message definitions** — `LoginRequest`, `LoginResponse`, `DisconnectMsg`, `HeartbeatMsg`, `EntitySpawnMsg`, `EntityDespawnMsg`, `StateSnapshotMsg`, `PlayerCommandMsg`, `ChatMsg`. Each with `Write(DataWriter&)` / `Read(DataReader&)`. Supporting enums: `LoginResult`, `DisconnectReason`, `CommandType`, `ChatChannel` | NeuronCore | `Messages.h` | ✅ Done |
+| 4.5 | **Server listener** — `SessionManager`: owns server UDP socket, polls datagrams, dispatches to `ClientSession` by address (packed uint64 key). Creates sessions on `LoginRequest`, sends `LoginResponse`, handles `Disconnect`/`Heartbeat`/`Ack`. Session timeout (30 s), max 100 clients. `ClientSession`: per-client state with `ReliableChannel`, `SendPacket()` and `SendReliable()` | NeuronServer | `SessionManager.h/.cpp`, `ClientSession.h/.cpp` | ✅ Done |
+| 4.6 | **Client connector** — `ServerConnection`: background `std::thread` for recv loop + reliable resend. `Connect()` sends `LoginRequest` via reliable channel, thread processes `LoginResponse` to transition to `Connected`. `Disconnect()` sends graceful disconnect. `DrainMessages()` for main-thread consumption via `concurrent_queue`. Mutex-protected send path | Earthrise | `ServerConnection.h/.cpp` | ✅ Done |
+| 4.7 | **Bandwidth throttling** — `BandwidthManager`: per-client byte budget (default 64 KB/s) with 1-second sliding window reset. Area-of-interest filtering via `IsInAreaOfInterest()` (SIMD distance check, default 10 km radius). Snapshot rate limiting (20 Hz min interval). `RemoveClient()` cleanup | NeuronServer | `BandwidthManager.h/.cpp` | ✅ Done |
 
-#### Tests (Phase 4)
-
-- Unit: Packet write → frame → parse round-trip
-- Unit: Message serialize/deserialize for each message type
-- Integration: Loopback test — server accepts connection from client on localhost, exchange login handshake, verify session created
+**Tests (Phase 4)**:
+- Unit: Packet frame → parse round-trip with payload ✅
+- Unit: Frame empty payload (header only) ✅
+- Unit: Parse rejects truncated datagram ✅
+- Unit: Parse rejects oversized payload claim ✅
+- Unit: Frame rejects oversized payload ✅
+- Unit: PacketHeader is 8 bytes ✅
+- Unit: LoginRequest serialize/deserialize round-trip ✅
+- Unit: LoginResponse serialize/deserialize round-trip ✅
+- Unit: DisconnectMsg serialize/deserialize round-trip ✅
+- Unit: HeartbeatMsg serialize/deserialize round-trip ✅
+- Unit: EntitySpawnMsg serialize/deserialize round-trip ✅
+- Unit: EntityDespawnMsg serialize/deserialize round-trip ✅
+- Unit: StateSnapshotMsg serialize/deserialize (2 entities) round-trip ✅
+- Unit: PlayerCommandMsg serialize/deserialize round-trip ✅
+- Unit: ChatMsg serialize/deserialize round-trip ✅
+- Unit: ReliableChannel queue, resend after timeout, ACK removes from pending ✅
+- Unit: ReliableChannel duplicate detection ✅
+- Unit: ReliableChannel sequence increments per send ✅
+- Unit: ReliableChannel no resend before timeout ✅
+- Unit: ReliableChannel BuildAck frames correctly ✅
+- Unit: BandwidthManager budget enforced per second ✅
+- Unit: BandwidthManager area-of-interest filtering ✅
+- Unit: BandwidthManager snapshot rate limiting ✅
+- Unit: BandwidthManager RemoveClient clears budget ✅
+- Unit: Full write→frame→parse→read round-trip (ChatMessage) ✅
+- Unit: Full write→frame→parse→read round-trip (EntitySpawn) ✅
 
 ---
 

@@ -3,7 +3,9 @@ add_library(NeuronCore STATIC
     EventManager.cpp
     FileSys.cpp
     NeuronCore.cpp
+    ReliableChannel.cpp
     TasksCore.cpp
+    UdpSocket.cpp
     pch.cpp
 )
 
