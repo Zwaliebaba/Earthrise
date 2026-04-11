@@ -282,7 +282,7 @@ void Core::CreateWindowSizeDependentResources()
 
     D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
     depthOptimizedClearValue.Format = m_depthBufferFormat;
-    depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
+    depthOptimizedClearValue.DepthStencil.Depth = 0.0f;  // Reverse-Z: far plane = 0
     depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
     check_hresult(m_d3dDevice->CreateCommittedResource(&depthHeapProperties, D3D12_HEAP_FLAG_NONE, &depthStencilDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue,

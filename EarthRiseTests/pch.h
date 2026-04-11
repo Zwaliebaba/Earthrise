@@ -1,4 +1,4 @@
 #pragma once
 
-#include "NeuronCoreBase.h"
+#include "NeuronClient.h"
 #include "CppUnitTest.h"

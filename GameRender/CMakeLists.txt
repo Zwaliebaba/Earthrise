@@ -1,6 +1,20 @@
 # GameRender — rendering static library (client only)
 add_library(GameRender STATIC
     pch.cpp
+    Camera.cpp
+    CmoLoader.cpp
+    FlatColorPipeline.cpp
+    GpuResourceManager.cpp
+    Mesh.cpp
+    MeshCache.cpp
+    PipelineHelpers.cpp
+    PostProcess.cpp
+    ShaderVisibleHeap.cpp
+    SpaceObjectRenderer.cpp
+    SpriteBatch.cpp
+    Starfield.cpp
+    TacticalGrid.cpp
+    UploadHeap.cpp
 )
 
 target_include_directories(GameRender PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

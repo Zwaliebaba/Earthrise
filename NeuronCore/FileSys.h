@@ -7,7 +7,7 @@ namespace Neuron
   class FileSys
   {
     public:
-      static void SetHomeDirectory(const std::wstring& _path) { m_homeDir = _path + L"\\Assets\\"; }
+      static void SetHomeDirectory(const std::wstring& _path) { m_homeDir = _path + L"\\GameData\\"; }
       [[nodiscard]] static std::wstring GetHomeDirectory() { return m_homeDir; }
 
     protected:
