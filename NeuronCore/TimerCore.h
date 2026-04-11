@@ -9,10 +9,10 @@ namespace Neuron::Timer
       static void Startup()
       {
         if (!QueryPerformanceFrequency(&m_qpcFrequency))
-          throw_hresult(E_FAIL);
+          Neuron::Fatal(L"QueryPerformanceFrequency failed");
 
         if (!QueryPerformanceCounter(&m_qpcLastTime))
-          throw_hresult(E_FAIL);
+          Neuron::Fatal(L"QueryPerformanceCounter failed");
 
         // Initialize max delta to 1/10 of a second.
         m_qpcMaxDelta = m_qpcFrequency.QuadPart / 10;
@@ -43,7 +43,7 @@ namespace Neuron::Timer
       static void ResetElapsedTime()
       {
         if (!QueryPerformanceCounter(&m_qpcLastTime))
-          throw_hresult(E_FAIL);
+          Neuron::Fatal(L"QueryPerformanceCounter failed");
 
         m_leftOverTicks = 0;
         m_framesPerSecond = 0;
@@ -58,7 +58,7 @@ namespace Neuron::Timer
         LARGE_INTEGER currentTime;
 
         if (!QueryPerformanceCounter(&currentTime))
-          throw_hresult(E_FAIL);
+          Neuron::Fatal(L"QueryPerformanceCounter failed");
 
         uint64_t timeDelta = currentTime.QuadPart - m_qpcLastTime.QuadPart;
 

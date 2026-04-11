@@ -12,13 +12,13 @@ target_include_directories(Earthrise PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_precompile_headers(Earthrise PRIVATE pch.h)
 
 # Dependencies
-target_link_libraries(Earthrise PRIVATE NeuronClient NeuronCore)
+target_link_libraries(Earthrise PRIVATE NeuronClient NeuronCore GameRender)
 
 # Disable CMake's own manifest handling — manifest is embedded via Earthrise.rc
 set_target_properties(Earthrise PROPERTIES
     LINK_FLAGS "/MANIFEST:NO"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/$<CONFIG>/${EARTHRISE_PLATFORM_NAME}"
-    PDB_OUTPUT_DIRECTORY     "${CMAKE_SOURCE_DIR}/$<CONFIG>/${EARTHRISE_PLATFORM_NAME}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/${EARTHRISE_PLATFORM_NAME}/$<CONFIG>"
+    PDB_OUTPUT_DIRECTORY     "${CMAKE_SOURCE_DIR}/${EARTHRISE_PLATFORM_NAME}/$<CONFIG>"
 )
 
 # Ensure the resource compiler can find app.manifest relative to the .rc file

@@ -34,6 +34,20 @@ byte_buffer_t BinaryFile::ReadFile(const std::wstring& _fileName)
   return data;
 }
 
+bool BinaryFile::WriteFile(const std::wstring& _fileName, const byte_buffer_t& _data)
+{
+  std::wstring fullName = FileSys::GetHomeDirectory() + _fileName;
+  ScopedHandle hFile(safe_handle(CreateFile2(fullName.c_str(), GENERIC_WRITE, 0, CREATE_ALWAYS, nullptr)));
+  if (!hFile)
+    return false;
+
+  DWORD bytesWritten = 0;
+  if (!::WriteFile(hFile.get(), _data.data(), static_cast<DWORD>(_data.size()), &bytesWritten, nullptr))
+    return false;
+
+  return bytesWritten == static_cast<DWORD>(_data.size());
+}
+
 std::wstring TextFile::ReadFile(const std::wstring& _fileName)
 {
   std::wstring data;

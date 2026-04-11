@@ -20,27 +20,27 @@ namespace Neuron
     }
 
     // Write a single byte
-    void WriteChar(const char _value)
+    [[deprecated("Use Write<char>() instead")]] void WriteChar(const char _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteChar out of bounds");
       m_data[m_size++] = static_cast<std::byte>(_value);
     }
 
-    void WriteByte(const uint8_t _value)
+    [[deprecated("Use Write<uint8_t>() instead")]] void WriteByte(const uint8_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteByte out of bounds");
       m_data[m_size++] = static_cast<std::byte>(_value);
     }
 
     // Write an int16
-    void WriteInt16(const int16_t _value)
+    [[deprecated("Use Write<int16_t>() instead")]] void WriteInt16(const int16_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteInt16 out of bounds");
       std::copy_n(reinterpret_cast<const uint8_t*>(&_value), sizeof(_value), reinterpret_cast<uint8_t*>(m_data.data() + m_size));
       m_size += sizeof(_value);
     }
 
-    void WriteUInt16(const uint16_t _value)
+    [[deprecated("Use Write<uint16_t>() instead")]] void WriteUInt16(const uint16_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteUInt16 out of bounds");
       std::copy_n(reinterpret_cast<const uint8_t*>(&_value), sizeof(_value), reinterpret_cast<uint8_t*>(m_data.data() + m_size));
@@ -48,14 +48,14 @@ namespace Neuron
     }
 
     // Write an int32
-    void WriteInt32(const int32_t _value)
+    [[deprecated("Use Write<int32_t>() instead")]] void WriteInt32(const int32_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteInt32 out of bounds");
       std::copy_n(reinterpret_cast<const uint8_t*>(&_value), sizeof(_value), reinterpret_cast<uint8_t*>(m_data.data() + m_size));
       m_size += sizeof(_value);
     }
 
-    void WriteUInt32(const uint32_t _value)
+    [[deprecated("Use Write<uint32_t>() instead")]] void WriteUInt32(const uint32_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteUInt32 out of bounds");
       std::copy_n(reinterpret_cast<const uint8_t*>(&_value), sizeof(_value), reinterpret_cast<uint8_t*>(m_data.data() + m_size));
@@ -63,14 +63,14 @@ namespace Neuron
     }
 
     // Write an int64
-    void WriteInt64(const int64_t _value)
+    [[deprecated("Use Write<int64_t>() instead")]] void WriteInt64(const int64_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteInt64 out of bounds");
       std::copy_n(reinterpret_cast<const uint8_t*>(&_value), sizeof(_value), reinterpret_cast<uint8_t*>(m_data.data() + m_size));
       m_size += sizeof(_value);
     }
 
-    void WriteUInt64(const uint64_t _value)
+    [[deprecated("Use Write<uint64_t>() instead")]] void WriteUInt64(const uint64_t _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteUInt64 out of bounds");
       std::copy_n(reinterpret_cast<const uint8_t*>(&_value), sizeof(_value), reinterpret_cast<uint8_t*>(m_data.data() + m_size));
@@ -78,7 +78,7 @@ namespace Neuron
     }
 
     // Write a float
-    void WriteFloat(const float _value)
+    [[deprecated("Use Write<float>() instead")]] void WriteFloat(const float _value)
     {
       ASSERT_TEXT(m_size + sizeof(_value) <= DATALOAD_SIZE, "WriteFloat out of bounds");
       std::copy_n(reinterpret_cast<const uint8_t*>(&_value), sizeof(_value), reinterpret_cast<uint8_t*>(m_data.data() + m_size));
@@ -91,7 +91,7 @@ namespace Neuron
       ASSERT_TEXT(m_size + sizeof(uint32_t) + _value.size() <= DATALOAD_SIZE, "WriteString out of bounds");
       uint32_t len = static_cast<uint32_t>(_value.size());
 
-      WriteUInt32(len);
+      Write<uint32_t>(len);
       std::memcpy(m_data.data() + m_size, _value.data(), len);
       m_size += len;
     }

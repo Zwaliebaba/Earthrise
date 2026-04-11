@@ -37,6 +37,7 @@ int WINAPI wWinMain(HINSTANCE _hInstance, HINSTANCE _hPrevInstance, LPWSTR _cmdL
 
       Graphics::Core::Prepare();
       main->RenderScene();
+      main->RenderCanvas();
       Graphics::Core::Present();
     }
   }

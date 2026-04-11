@@ -58,9 +58,9 @@ else()
     set(EARTHRISE_PLATFORM_NAME "x64")
 endif()
 
-# Final output (executables) → <root>/<Config>/<Platform>/
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/$<CONFIG>/${EARTHRISE_PLATFORM_NAME}")
-set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_SOURCE_DIR}/$<CONFIG>/${EARTHRISE_PLATFORM_NAME}")
+# Final output (executables) → <root>/<Platform>/<Config>/
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/${EARTHRISE_PLATFORM_NAME}/$<CONFIG>")
+set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_SOURCE_DIR}/${EARTHRISE_PLATFORM_NAME}/$<CONFIG>")
 
 # ── C++/WinRT (via vcpkg) ───────────────────────────────────────────────────
 find_package(cppwinrt CONFIG REQUIRED)
@@ -77,5 +77,8 @@ endif()
 add_subdirectory(NeuronCore)
 add_subdirectory(NeuronClient)
 add_subdirectory(NeuronServer)
+add_subdirectory(GameLogic)
+add_subdirectory(GameRender)
 add_subdirectory(Earthrise)
 add_subdirectory(EarthRiseServer)
+add_subdirectory(EarthRiseTests)
