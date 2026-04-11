@@ -3,14 +3,14 @@
 
 int main()
 {
-    Neuron::DebugTrace("EarthRiseServer starting...\n");
+    Neuron::Server::ServerLog("EarthRiseServer starting...\n");
 
     Neuron::InitializeNetworking();
 
     EarthRise::ServerLoop server;
     if (!server.Startup())
     {
-        Neuron::DebugTrace("EarthRiseServer: Startup failed\n");
+        Neuron::Server::ServerLog("EarthRiseServer: Startup failed\n");
         Neuron::ShutdownNetworking();
         return 1;
     }
@@ -20,6 +20,6 @@ int main()
 
     Neuron::ShutdownNetworking();
 
-    Neuron::DebugTrace("EarthRiseServer exited\n");
+    Neuron::Server::ServerLog("EarthRiseServer exited\n");
     return 0;
 }

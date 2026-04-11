@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "GameApp.h"
+#include "Interpolation.h"
 
 GameApp* g_app = nullptr;
 
@@ -10,25 +11,11 @@ namespace
  L"ENG", L"FRA", L"ITA", L"DEU", L"ESP", L"RUS", L"POL", L"POR", L"JPN", L"KOR", L"CHS", L"CHT"
   };
 
-  // Test scene — one mesh per category with distinct Darwinia-style neon colors
-  struct TestObject
+  // Known mesh keys for hash registration (populated during preload).
+  struct MeshKeyEntry
   {
-    const char* meshKey;
-    XMFLOAT3 position;
-    XMFLOAT4 color;
-    float scale;
-  };
-
-  constexpr TestObject c_testObjects[] =
-  {
-    { "Asteroids/Asteroid01",             {  0,  0,  10 }, { 0.8f, 0.6f, 0.2f, 1 }, 1.0f },  // Warm orange
-    { "Crates/Crate01",                   {  5,  1,   8 }, { 0.0f, 1.0f, 0.5f, 1 }, 1.0f },  // Neon green
-    { "Hulls/HullShuttle",                { -4,  0,  12 }, { 0.0f, 0.8f, 1.0f, 1 }, 1.0f },  // Cyan
-    { "Jumpgates/Jumpgate01",             { 10,  0,  18 }, { 1.0f, 0.0f, 1.0f, 1 }, 1.0f },  // Magenta
-    { "Projectiles/MissileLight",         {  3,  2,   9 }, { 1.0f, 1.0f, 0.0f, 1 }, 1.0f },  // Yellow
-    { "SpaceObjects/DebrisGenericBarrel01",{ -6, -1,  11 }, { 0.5f, 0.5f, 0.5f, 1 }, 1.0f },  // Grey
-    { "Stations/Mining01",                { 14,  3,  20 }, { 1.0f, 0.5f, 0.0f, 1 }, 1.0f },  // Orange
-    { "Turrets/BallisticTurret01",        {  2, -2,   7 }, { 0.3f, 0.7f, 1.0f, 1 }, 1.0f },  // Light blue
+    const char* folder;
+    const char* name;
   };
 }
 
@@ -50,6 +37,7 @@ GameApp::~GameApp()
 Windows::Foundation::IAsyncAction GameApp::Startup()
 {
   using namespace Neuron::Graphics;
+  using namespace Neuron;
 
   const UINT backBufferCount = Core::GetBackBufferCount();
 
@@ -66,7 +54,7 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
   float width = static_cast<float>(outputSize.right - outputSize.left);
   float height = static_cast<float>(outputSize.bottom - outputSize.top);
   m_camera.SetPerspective(XM_PIDIV4, width / height, 0.1f, 20000.0f);
-  m_camera.SetPosition(XMVectorSet(0, 2, 0, 0));
+  m_camera.SetPosition(XMVectorSet(0, 4, 28, 0));
   m_camera.SetLookDirection(Math::Vector3::FORWARD);
   m_camera.SetMode(CameraMode::FreeFly);
 
@@ -77,9 +65,47 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
   m_tacticalGrid.Initialize();
   m_spriteBatch.Initialize();
 
-  // Preload test meshes
-  for (const auto& obj : c_testObjects)
-    m_meshCache.GetMesh(obj.meshKey);
+  // Preload all mesh categories for fast lookup
+  for (auto cat = SpaceObjectCategory::SpaceObject; cat < SpaceObjectCategory::COUNT; ++cat)
+  {
+    m_meshCache.PreloadCategory(cat);
+  }
+
+  // Log the bounds of the first asteroid mesh for scale diagnostics
+  if (auto* mesh = m_meshCache.GetMesh("Asteroids/Asteroid01"))
+  {
+    DebugTrace("MeshCache: Asteroid01 loaded — verts={}, indices={}, submeshes={}\n",
+               mesh->GetVertexCount(), mesh->GetIndexCount(),
+               mesh->GetSubmeshes().size());
+  }
+  else
+  {
+    DebugTrace("MeshCache: Asteroid01 NOT FOUND after preload!\n");
+  }
+
+  // Build mesh hash reverse lookup: server sends bare-name hashes (e.g., HashMeshName("Asteroid01")),
+  // but MeshCache keys are "Category/BareName" (e.g., "Asteroids/Asteroid01"). Register both.
+  {
+    std::unordered_map<uint32_t, std::string> hashMap;
+    for (auto cat = SpaceObjectCategory::SpaceObject; cat < SpaceObjectCategory::COUNT; ++cat)
+    {
+      m_meshCache.BuildMeshHashMap(cat, hashMap);
+    }
+    for (const auto& [hash, key] : hashMap)
+    {
+      m_worldState.RegisterMeshName(hash, key);
+    }
+  }
+
+  // Input setup
+  m_inputState.SetScreenSize(width, height);
+  m_commandTargeting.Initialize(&m_worldState, &m_camera);
+  m_commandTargeting.SetScreenSize(width, height);
+  m_inputHandler.Initialize(&m_serverConnection, &m_worldState, &m_camera, &m_commandTargeting);
+  m_fleetSelectionUI.Initialize(&m_worldState, &m_camera);
+
+  // Connect to the local server.
+  m_serverConnection.Connect("127.0.0.1", 7777, "Player1");
 
   m_initialized = true;
   co_return;
@@ -87,16 +113,119 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
 
 void GameApp::Shutdown()
 {
+  m_serverConnection.Disconnect();
   Graphics::Core::WaitForGpu();
   m_uploadHeap.Destroy();
   m_srvHeap.Destroy();
   m_initialized = false;
 }
 
+bool GameApp::ProcessInput(UINT _message, WPARAM _wParam, LPARAM _lParam)
+{
+  return m_inputState.ProcessMessage(_message, _wParam, _lParam);
+}
+
 void GameApp::Update(float _deltaT)
 {
   if (!m_initialized) return;
+
+  // Begin input frame
+  m_inputState.BeginFrame();
+
+  // Process network messages
+  ProcessServerMessages();
+
+  // Send heartbeat to keep server session alive (~10 Hz)
+  m_heartbeatTimer += _deltaT;
+  if (m_heartbeatTimer >= 10.0f)
+  {
+    m_serverConnection.Send(Neuron::MessageId::Heartbeat, nullptr, 0);
+    m_heartbeatTimer = 0.0f;
+  }
+
+  // Update world state (interpolation)
+  m_worldState.Update(_deltaT);
+
+  // Update prediction for owned fleet
+  m_prediction.Update(_deltaT, 100.0f); // default move speed for prediction
+
+  // Handle input → camera, fleet commands
+  m_inputHandler.Update(_deltaT, m_inputState);
+
+  // Update fleet selection UI (box-drag state)
+  m_fleetSelectionUI.Update(_deltaT, m_inputState);
+  m_fleetSelectionUI.SetSelection(m_inputHandler.GetSelectedShips());
+
+  // Camera update
   m_camera.Update(_deltaT);
+}
+
+void GameApp::ProcessServerMessages()
+{
+  using namespace Neuron;
+
+  std::vector<ReceivedMessage> messages;
+  m_serverConnection.DrainMessages(messages, 64);
+
+  for (const auto& msg : messages)
+  {
+    DataReader reader(msg.Payload.data(), static_cast<int>(msg.Payload.size()));
+
+    switch (msg.MsgId)
+    {
+    case MessageId::EntitySpawn:
+    {
+      EntitySpawnMsg spawn;
+      spawn.Read(reader);
+      m_worldState.ApplySpawn(spawn);
+      {
+        const auto* ent = m_worldState.GetEntity(spawn.Handle);
+        DebugTrace("GameApp: Entity spawned (handle={}, cat={}, mesh={}, key=\"{}\", pos=({:.0f},{:.0f},{:.0f})). Active: {}\n",
+                   spawn.Handle.m_id, static_cast<int>(spawn.Category),
+                   spawn.MeshHash, ent ? ent->MeshKey : "<null>",
+                   spawn.Position.x, spawn.Position.y, spawn.Position.z,
+                   m_worldState.ActiveCount());
+      }
+      break;
+    }
+
+    case MessageId::EntityDespawn:
+    {
+      EntityDespawnMsg despawn;
+      despawn.Read(reader);
+      m_worldState.ApplyDespawn(despawn);
+      m_prediction.Remove(despawn.Handle);
+      break;
+    }
+
+    case MessageId::StateSnapshot:
+    {
+      StateSnapshotMsg snapshot;
+      snapshot.Read(reader);
+      m_worldState.ApplySnapshot(snapshot);
+
+      // Reconcile predictions with server state
+      for (const auto& state : snapshot.Entities)
+      {
+        EntityHandle h;
+        h.m_id = state.HandleId;
+        m_prediction.Reconcile(h, state.Position);
+      }
+      break;
+    }
+
+    case MessageId::ChatMessage:
+    {
+      ChatMsg chat;
+      chat.Read(reader);
+      DebugTrace("[Chat] {}: {}\n", chat.SenderName, chat.Text);
+      break;
+    }
+
+    default:
+      break;
+    }
+  }
 }
 
 void GameApp::RenderScene()
@@ -129,27 +258,87 @@ void GameApp::RenderScene()
   // Starfield (render first, no depth write)
   m_starfield.Render(cmdList, m_cbAlloc, m_camera);
 
-  // Space objects
-  m_objectRenderer.BeginFrame(cmdList, m_cbAlloc, m_camera);
+  // Render world entities
+  RenderWorldEntities(cmdList);
 
-  for (const auto& obj : c_testObjects)
+  // Tactical grid
+  m_tacticalGrid.Render(cmdList, m_cbAlloc, m_camera);
+}
+
+void GameApp::RenderWorldEntities(ID3D12GraphicsCommandList* _cmdList)
+{
+  using namespace Neuron::Graphics;
+
+  m_objectRenderer.BeginFrame(_cmdList, m_cbAlloc, m_camera);
+
+  int totalCount = 0, noKeyCount = 0, noMeshCount = 0, renderedCount = 0;
+  float nearestDist = 99999.0f;
+  XMVECTOR camPos = m_camera.GetPosition();
+  m_worldState.ForEachActive([&](const ClientEntity& entity)
   {
-    const Mesh* mesh = m_meshCache.GetMesh(obj.meshKey);
-    if (!mesh) continue;
+    ++totalCount;
+    // Resolve mesh from hash using category folder + mesh name
+    std::string meshKey = entity.MeshKey;
+    if (meshKey.empty())
+    {
+      ++noKeyCount;
+      return;
+    }
 
-    XMMATRIX world = XMMatrixScaling(obj.scale, obj.scale, obj.scale) *
-      XMMatrixTranslation(obj.position.x, obj.position.y, obj.position.z);
+    const Mesh* mesh = m_meshCache.GetMesh(meshKey);
+    if (!mesh) { ++noMeshCount; return; }
+
+    // Build world matrix from position + orientation
+    XMFLOAT3 renderPos = entity.Position;
+
+    // Use predicted position if available
+    const XMFLOAT3* predicted = m_prediction.GetPredictedPosition(entity.Handle);
+    if (predicted)
+      renderPos = *predicted;
+
+    // Track nearest entity for diagnostics
+    XMVECTOR entPos = XMLoadFloat3(&renderPos);
+    float dist = XMVectorGetX(XMVector3Length(XMVectorSubtract(entPos, camPos)));
+    if (dist < nearestDist) nearestDist = dist;
+
+    XMVECTOR orientation = XMLoadFloat4(&entity.Orientation);
+    XMMATRIX rotMatrix = XMMatrixRotationQuaternion(orientation);
+    XMMATRIX world = rotMatrix *
+      XMMatrixTranslation(renderPos.x, renderPos.y, renderPos.z);
 
     // Origin-rebasing: subtract camera world position
-    XMVECTOR camPos = m_camera.GetPosition();
-    XMFLOAT3 cam;
-    XMStoreFloat3(&cam, camPos);
-    world.r[3] = XMVectorSubtract(world.r[3], XMVectorSet(cam.x, cam.y, cam.z, 0));
+    world.r[3] = XMVectorSubtract(world.r[3], XMVectorSetW(camPos, 0));
 
-    XMVECTOR color = XMLoadFloat4(&obj.color);
-    m_objectRenderer.RenderObject(cmdList, m_cbAlloc, mesh, world, color);
+    XMVECTOR color = XMLoadFloat4(&entity.Color);
+    m_objectRenderer.RenderObject(_cmdList, m_cbAlloc, mesh, world, color);
+    ++renderedCount;
+  });
+
+#if defined(_DEBUG)
+  // Show render stats in window title for diagnostics
+  {
+    XMFLOAT3 cp;
+    XMStoreFloat3(&cp, camPos);
+    char buf[512];
+    sprintf_s(buf, "DSO — ent:%d key:%d mesh:%d draw:%d near:%.0f cam:(%.0f,%.0f,%.0f) meshes:%zu",
+              totalCount, noKeyCount, noMeshCount, renderedCount,
+              nearestDist, cp.x, cp.y, cp.z, m_meshCache.GetCacheSize());
+    SetWindowTextA(ClientEngine::Window(), buf);
   }
+#endif
+}
 
-  // Tactical grid (off by default, toggle with code)
-  m_tacticalGrid.Render(cmdList, m_cbAlloc, m_camera);
+void GameApp::RenderCanvas()
+{
+  using namespace Neuron::Graphics;
+
+  if (!m_initialized) return;
+
+  auto cmdList = Core::GetCommandList();
+  auto outputSize = Core::GetOutputSize();
+  UINT screenW = static_cast<UINT>(outputSize.right - outputSize.left);
+  UINT screenH = static_cast<UINT>(outputSize.bottom - outputSize.top);
+
+  // Fleet selection UI (brackets and drag box)
+  m_fleetSelectionUI.Render(cmdList, m_cbAlloc, m_spriteBatch, screenW, screenH);
 }

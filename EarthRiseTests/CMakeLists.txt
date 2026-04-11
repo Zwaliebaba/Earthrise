@@ -11,6 +11,7 @@ add_library(EarthRiseTests SHARED
     SerializationTests.cpp
     RenderMathTests.cpp
     SimulationTests.cpp
+    ClientSyncTests.cpp
     # GameLogic sources needed by tests, compiled with dynamic CRT
     ${CMAKE_SOURCE_DIR}/GameLogic/EntityPool.cpp
     ${CMAKE_SOURCE_DIR}/GameLogic/SpaceObjectManager.cpp

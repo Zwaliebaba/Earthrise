@@ -41,9 +41,9 @@ Mesh* MeshCache::GetMesh(std::string_view key)
   if (it != m_cache.end())
     return it->second.get();
 
-  // Build file path: Assets/Mesh/<key>.cmo
+  // Build file path: <HomeDir>/Meshes/<key>.cmo
   std::wstring filePath = FileSys::GetHomeDirectory();
-  filePath += L"Mesh\\";
+  filePath += L"Meshes\\";
 
   // Convert key (narrow) to wide
   for (char c : key)
@@ -79,7 +79,7 @@ void MeshCache::PreloadCategory(SpaceObjectCategory category)
   if (!folder[0]) return;
 
   std::wstring searchPath = FileSys::GetHomeDirectory();
-  searchPath += L"Mesh\\";
+  searchPath += L"Meshes\\";
 
   // Convert folder to wide
   std::wstring wideFolder;
@@ -107,6 +107,51 @@ void MeshCache::PreloadCategory(SpaceObjectCategory category)
       key += static_cast<char>(wc);
 
     GetMesh(key);
+  }
+  while (FindNextFileW(hFind, &findData));
+
+  FindClose(hFind);
+}
+
+void MeshCache::BuildMeshHashMap(SpaceObjectCategory category,
+                                  std::unordered_map<uint32_t, std::string>& _outMap)
+{
+  const char* folder = GetCategoryFolder(category);
+  if (!folder[0]) return;
+
+  std::wstring searchPath = FileSys::GetHomeDirectory();
+  searchPath += L"Meshes\\";
+
+  std::wstring wideFolder;
+  for (const char* p = folder; *p; ++p)
+    wideFolder += static_cast<wchar_t>(*p);
+  searchPath += wideFolder;
+  searchPath += L"\\*.cmo";
+
+  WIN32_FIND_DATAW findData;
+  HANDLE hFind = FindFirstFileW(searchPath.c_str(), &findData);
+  if (hFind == INVALID_HANDLE_VALUE)
+    return;
+
+  do
+  {
+    std::wstring name(findData.cFileName);
+    if (name.size() > 4)
+      name.resize(name.size() - 4);
+
+    // Bare mesh name (what the server hashes)
+    std::string bareName;
+    for (wchar_t wc : name)
+      bareName += static_cast<char>(wc);
+
+    // Full cache key: "Category/BareName"
+    std::string fullKey(folder);
+    fullKey += '/';
+    fullKey += bareName;
+
+    // Hash the bare name (same as Neuron::HashMeshName)
+    uint32_t bareHash = HashKey(bareName);
+    _outMap[bareHash] = fullKey;
   }
   while (FindNextFileW(hFind, &findData));
 

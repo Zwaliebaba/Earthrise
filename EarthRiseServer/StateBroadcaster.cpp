@@ -13,14 +13,35 @@ namespace EarthRise
   {
   }
 
+  void StateBroadcaster::SendInitialSpawns(uint32_t _sessionId, double _currentTime)
+  {
+    // Send EntitySpawn (reliable) for every active entity in the zone.
+    uint32_t count = 0;
+
+    m_zone.GetEntityManager().ForEachActive([&](Neuron::SpaceObject& _obj)
+    {
+      Neuron::EntitySpawnMsg spawn;
+      spawn.Handle      = _obj.Handle;
+      spawn.Category    = _obj.Category;
+      spawn.MeshHash    = _obj.MeshNameHash;
+      spawn.Position    = _obj.Position;
+      spawn.Orientation = _obj.Orientation;
+      spawn.Color       = _obj.Color;
+
+      Neuron::DataWriter writer;
+      spawn.Write(writer);
+
+      m_sessions.SendReliable(_sessionId, Neuron::MessageId::EntitySpawn,
+                              writer.Data(), writer.Size(), _currentTime);
+      ++count;
+    });
+
+    Neuron::Server::ServerLog("StateBroadcaster: sent {} entity spawns to session {}\n",
+                              count, _sessionId);
+  }
+
   void StateBroadcaster::BroadcastState(double _currentTime)
   {
-    // For each connected session, build a state snapshot of nearby entities.
-    // This iterates sessions, so we need access to them. SessionManager doesn't
-    // expose an iterator directly, so we'll iterate known session IDs.
-    // For now, use a simple approach: iterate all active entities into one snapshot
-    // per client, filtered by AoI.
-
     // Entities per datagram: each EntityState = 4 + 12 + 16 + 12 = 44 bytes
     // SnapshotMsg header = 4 (tick) + 2 (count) = 6 bytes
     // PacketHeader = 8 bytes
@@ -29,16 +50,22 @@ namespace EarthRise
 
     uint32_t tick = m_zone.TickCount();
 
-    // We need to iterate over sessions. Use the session manager's ForEach if available.
-    // Since SessionManager doesn't expose ForEach, we'll track sessions externally
-    // via the session count. For now, broadcast to all session IDs 1..max.
-    // This is a simplified approach — production would use a session list.
-
     for (uint32_t sid = 1; sid <= Neuron::Server::SessionManager::MAX_CLIENTS; ++sid)
     {
       Neuron::Server::ClientSession* session = m_sessions.FindSession(sid);
       if (!session || session->GetState() != Neuron::Server::ClientSession::State::Connected)
+      {
+        // Clean up tracking for disconnected sessions.
+        m_initializedSessions.erase(sid);
         continue;
+      }
+
+      // Send initial entity spawns to newly connected clients.
+      if (!m_initializedSessions.contains(sid))
+      {
+        SendInitialSpawns(sid, _currentTime);
+        m_initializedSessions.insert(sid);
+      }
 
       if (!m_bandwidth.CanSendSnapshot(sid, _currentTime))
         continue;

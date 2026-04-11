@@ -50,7 +50,7 @@ namespace EarthRise
       }
     }
 
-    Neuron::DebugTrace("ZoneLoader: Loaded {} entities from zone file\n", entityCount);
+    Neuron::Server::ServerLog("ZoneLoader: Loaded {} entities from zone file\n", entityCount);
     return true;
   }
 
@@ -61,14 +61,14 @@ namespace EarthRise
     // Spawn some test asteroids
     for (int i = 0; i < 20; ++i)
     {
-      float x = static_cast<float>(i * 200 - 2000);
-      float y = static_cast<float>((i % 5) * 100 - 250);
-      float z = 500.0f + static_cast<float>(i * 50);
+      float x = static_cast<float>(i * 8 - 80);
+      float y = static_cast<float>((i % 5) * 4 - 10);
+      float z = 20.0f + static_cast<float>(i * 2);
       auto h = mgr.CreateEntity(Neuron::SpaceObjectCategory::Asteroid,
         XMFLOAT3{ x, y, z }, Neuron::HashMeshName("Asteroid01"));
       if (auto* obj = mgr.GetSpaceObject(h))
       {
-        obj->BoundingRadius = 30.0f;
+        obj->BoundingRadius = 1.2f;
         obj->Color = { 0.6f, 0.5f, 0.2f, 1.0f };
       }
     }
@@ -76,15 +76,15 @@ namespace EarthRise
     // Spawn a station
     {
       auto h = mgr.CreateEntity(Neuron::SpaceObjectCategory::Station,
-        XMFLOAT3{ 0.0f, 0.0f, 1000.0f }, Neuron::HashMeshName("Mining01"));
+        XMFLOAT3{ 0.0f, 0.0f, 40.0f }, Neuron::HashMeshName("Mining01"));
       if (auto* obj = mgr.GetSpaceObject(h))
       {
-        obj->BoundingRadius = 200.0f;
+        obj->BoundingRadius = 8.0f;
         obj->Color = { 0.7f, 0.0f, 0.8f, 1.0f };
       }
       if (auto* sd = mgr.GetStationData(h))
       {
-        sd->DockingRadius = 300.0f;
+        sd->DockingRadius = 12.0f;
         sd->HasRepair = true;
         sd->HasMarket = true;
       }
@@ -94,33 +94,33 @@ namespace EarthRise
     Neuron::EntityHandle gate1, gate2;
     {
       gate1 = mgr.CreateEntity(Neuron::SpaceObjectCategory::Jumpgate,
-        XMFLOAT3{ -5000.0f, 0.0f, 0.0f }, Neuron::HashMeshName("Jumpgate01"));
+        XMFLOAT3{ -200.0f, 0.0f, 0.0f }, Neuron::HashMeshName("Jumpgate01"));
       gate2 = mgr.CreateEntity(Neuron::SpaceObjectCategory::Jumpgate,
-        XMFLOAT3{ 5000.0f, 0.0f, 0.0f }, Neuron::HashMeshName("Jumpgate01"));
+        XMFLOAT3{ 200.0f, 0.0f, 0.0f }, Neuron::HashMeshName("Jumpgate01"));
 
       if (auto* obj = mgr.GetSpaceObject(gate1))
       {
-        obj->BoundingRadius = 50.0f;
+        obj->BoundingRadius = 2.0f;
         obj->Color = { 0.0f, 1.0f, 0.8f, 1.0f };
       }
       if (auto* gd = mgr.GetJumpgateData(gate1))
       {
-        gd->ActivationRadius = 100.0f;
-        gd->DestinationPosition = { 5100.0f, 0.0f, 0.0f }; // Near gate2
+        gd->ActivationRadius = 4.0f;
+        gd->DestinationPosition = { 204.0f, 0.0f, 0.0f }; // Near gate2
       }
 
       if (auto* obj = mgr.GetSpaceObject(gate2))
       {
-        obj->BoundingRadius = 50.0f;
+        obj->BoundingRadius = 2.0f;
         obj->Color = { 0.0f, 1.0f, 0.8f, 1.0f };
       }
       if (auto* gd = mgr.GetJumpgateData(gate2))
       {
-        gd->ActivationRadius = 100.0f;
-        gd->DestinationPosition = { -4900.0f, 0.0f, 0.0f }; // Near gate1
+        gd->ActivationRadius = 4.0f;
+        gd->DestinationPosition = { -196.0f, 0.0f, 0.0f }; // Near gate1
       }
     }
 
-    Neuron::DebugTrace("ZoneLoader: Created test zone with {} entities\n", mgr.ActiveCount());
+    Neuron::Server::ServerLog("ZoneLoader: Created test zone with {} entities\n", mgr.ActiveCount());
   }
 }

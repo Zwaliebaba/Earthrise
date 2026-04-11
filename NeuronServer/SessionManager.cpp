@@ -8,10 +8,10 @@ namespace Neuron::Server
     InitializeNetworking();
     if (!m_socket.Bind(_port))
     {
-      DebugTrace("SessionManager: failed to bind on port {}\n", _port);
+      Server::ServerLog("SessionManager: failed to bind on port {}\n", _port);
       return false;
     }
-    DebugTrace("SessionManager: listening on port {}\n", _port);
+    Server::ServerLog("SessionManager: listening on port {}\n", _port);
     return true;
   }
 
@@ -70,7 +70,7 @@ namespace Neuron::Server
       {
         uint64_t key = AddressKey(it->second->Address());
         m_addrToSession.erase(key);
-        DebugTrace("SessionManager: session {} timed out\n", id);
+        Server::ServerLog("SessionManager: session {} timed out\n", id);
         m_sessions.erase(it);
       }
     }
@@ -136,7 +136,7 @@ namespace Neuron::Server
     auto* ptr = session.get();
     m_sessions[id] = std::move(session);
 
-    DebugTrace("SessionManager: created session {} for {}:{}\n",
+    Server::ServerLog("SessionManager: created session {} for {}:{}\n",
                id, inet_ntoa(_addr.sin_addr), ntohs(_addr.sin_port));
     return ptr;
   }
@@ -219,7 +219,7 @@ namespace Neuron::Server
     _session.SetPlayerName(std::move(req.PlayerName));
     _session.SetState(ClientSession::State::Connected);
 
-    DebugTrace("SessionManager: player '{}' logged in (session {})\n",
+    Server::ServerLog("SessionManager: player '{}' logged in (session {})\n",
                _session.PlayerName(), _session.SessionId());
 
     // Build and send login response.
@@ -242,7 +242,7 @@ namespace Neuron::Server
     (void)_payload;
     (void)_payloadSize;
 
-    DebugTrace("SessionManager: session {} disconnected\n", _session.SessionId());
+    Server::ServerLog("SessionManager: session {} disconnected\n", _session.SessionId());
     _session.SetState(ClientSession::State::Disconnecting);
 
     // Remove immediately.

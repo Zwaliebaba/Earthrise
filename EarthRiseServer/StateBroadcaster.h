@@ -18,8 +18,14 @@ namespace EarthRise
     void BroadcastState(double _currentTime);
 
   private:
+    // Send EntitySpawn messages for all zone entities to a newly connected client.
+    void SendInitialSpawns(uint32_t _sessionId, double _currentTime);
+
     Zone&                            m_zone;
     Neuron::Server::SessionManager&  m_sessions;
     Neuron::Server::BandwidthManager& m_bandwidth;
+
+    // Sessions that have received their initial entity spawn burst.
+    std::unordered_set<uint32_t> m_initializedSessions;
   };
 }

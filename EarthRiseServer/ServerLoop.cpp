@@ -10,19 +10,20 @@ namespace EarthRise
 
   bool ServerLoop::Startup(uint16_t _port)
   {
-    Neuron::DebugTrace("ServerLoop: Starting on port {}\n", _port);
+    Neuron::Server::ServerLog("ServerLoop: Starting on port {}\n", _port);
 
     if (!m_sessions.Startup(_port))
     {
-      Neuron::DebugTrace("ServerLoop: Failed to start session manager\n");
+      Neuron::Server::ServerLog("ServerLoop: Failed to start session manager\n");
       return false;
     }
 
     // Create a test zone with default entities.
     ZoneLoader::CreateTestZone(m_zone);
 
-    Neuron::DebugTrace("ServerLoop: Startup complete. Tick rate: {} Hz\n",
-      static_cast<int>(TICK_RATE));
+    Neuron::Server::ServerLog("ServerLoop: Startup complete. Tick rate: {} Hz, {} entities\n",
+      static_cast<int>(TICK_RATE), m_zone.GetEntityManager().ActiveCount());
+    Neuron::Server::ServerLog("ServerLoop: Waiting for clients...\n");
     return true;
   }
 
@@ -30,7 +31,7 @@ namespace EarthRise
   {
     m_running = false;
     m_sessions.Shutdown();
-    Neuron::DebugTrace("ServerLoop: Shutdown complete\n");
+    Neuron::Server::ServerLog("ServerLoop: Shutdown complete\n");
   }
 
   void ServerLoop::Run()

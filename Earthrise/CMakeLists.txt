@@ -2,6 +2,12 @@
 add_executable(Earthrise WIN32
     GameApp.cpp
     ServerConnection.cpp
+    ClientWorldState.cpp
+    Prediction.cpp
+    InputState.cpp
+    InputHandler.cpp
+    FleetSelectionUI.cpp
+    CommandTargeting.cpp
     WinMain.cpp
     pch.cpp
     Earthrise.rc        # embeds app.manifest
@@ -35,7 +41,7 @@ if(EXISTS "${MESH_SOURCE_DIR}")
     add_custom_command(TARGET Earthrise POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${MESH_SOURCE_DIR}"
-            "$<TARGET_FILE_DIR:Earthrise>/GameData/Mesh"
-        COMMENT "Copying mesh assets to GameData/Mesh..."
+            "$<TARGET_FILE_DIR:Earthrise>/GameData/Meshes"
+        COMMENT "Copying mesh assets to GameData/Meshes..."
     )
 endif()

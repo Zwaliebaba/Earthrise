@@ -27,6 +27,10 @@ int WINAPI wWinMain(HINSTANCE _hInstance, HINSTANCE _hPrevInstance, LPWSTR _cmdL
   {
     if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
     {
+      // Forward input messages to GameApp before default dispatch
+      if (g_app)
+        g_app->ProcessInput(msg.message, msg.wParam, msg.lParam);
+
       TranslateMessage(&msg);
       DispatchMessage(&msg);
     }

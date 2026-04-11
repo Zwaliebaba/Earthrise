@@ -22,6 +22,12 @@ namespace Neuron::Graphics
     // Batch-load all meshes in a category folder.
     void PreloadCategory(SpaceObjectCategory category);
 
+    // Build reverse lookup: HashMeshName(bareName) → "Category/bareName"
+    // for all meshes in a given category. Used by the client to resolve
+    // server-sent mesh hashes (which hash bare names) to full cache keys.
+    void BuildMeshHashMap(SpaceObjectCategory category,
+                          std::unordered_map<uint32_t, std::string>& _outMap);
+
     // Number of cached meshes.
     [[nodiscard]] size_t GetCacheSize() const noexcept { return m_cache.size(); }
 

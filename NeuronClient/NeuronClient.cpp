@@ -68,7 +68,6 @@ void ClientEngine::Startup(const wchar_t* _gameName, Windows::Foundation::Size _
   Graphics::Core::SetWindow(m_hwnd, rc.right - rc.left, rc.bottom - rc.top);
 
   ShowWindow(m_hwnd, nCmdShow);
-  ShowCursor(FALSE);
 }
 
 void ClientEngine::StartGame(const com_ptr<GameMain>&& _gameMain)
