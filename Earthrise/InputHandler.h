@@ -7,6 +7,8 @@
 class ServerConnection;
 class ClientWorldState;
 class CommandTargeting;
+class TargetingUI;
+class ChatUI;
 
 namespace Neuron::Graphics { class Camera; }
 
@@ -22,7 +24,9 @@ public:
   void Initialize(ServerConnection* _connection,
     ClientWorldState* _worldState,
     Neuron::Graphics::Camera* _camera,
-    CommandTargeting* _targeting);
+    CommandTargeting* _targeting,
+    TargetingUI* _targetingUI = nullptr,
+    ChatUI* _chatUI = nullptr);
 
   // Process input for this frame.
   void Update(float _deltaT, const InputState& _input);
@@ -55,6 +59,8 @@ private:
   ClientWorldState* m_worldState = nullptr;
   Neuron::Graphics::Camera* m_camera = nullptr;
   CommandTargeting* m_targeting = nullptr;
+  TargetingUI* m_targetingUI = nullptr;
+  ChatUI* m_chatUI = nullptr;
 
   std::vector<Neuron::EntityHandle> m_selectedShips;
 

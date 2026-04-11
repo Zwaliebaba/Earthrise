@@ -13,6 +13,7 @@ add_library(EarthRiseTests SHARED
     SimulationTests.cpp
     ClientSyncTests.cpp
     GameplayTests.cpp
+    UITests.cpp
     # GameLogic sources needed by tests, compiled with dynamic CRT
     ${CMAKE_SOURCE_DIR}/GameLogic/EntityPool.cpp
     ${CMAKE_SOURCE_DIR}/GameLogic/SpaceObjectManager.cpp
@@ -31,6 +32,15 @@ add_library(EarthRiseTests SHARED
     ${CMAKE_SOURCE_DIR}/GameRender/CmoLoader.cpp
     # NeuronCore networking sources needed by tests
     ${CMAKE_SOURCE_DIR}/NeuronCore/ReliableChannel.cpp
+    # Earthrise client sources needed by UI tests
+    ${CMAKE_SOURCE_DIR}/Earthrise/ClientWorldState.cpp
+    ${CMAKE_SOURCE_DIR}/Earthrise/HUD.cpp
+    ${CMAKE_SOURCE_DIR}/Earthrise/TargetingUI.cpp
+    ${CMAKE_SOURCE_DIR}/Earthrise/ChatUI.cpp
+    ${CMAKE_SOURCE_DIR}/Earthrise/FleetPanel.cpp
+    ${CMAKE_SOURCE_DIR}/Earthrise/JumpgateUI.cpp
+    # Stubs for GPU-dependent classes (SpriteBatch, Camera) to satisfy linker
+    TestStubs.cpp
     # NeuronServer sources needed by tests
     ${CMAKE_SOURCE_DIR}/NeuronServer/BandwidthManager.cpp
 )
@@ -39,6 +49,7 @@ target_include_directories(EarthRiseTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/GameLogic
     ${CMAKE_SOURCE_DIR}/GameRender
+    ${CMAKE_SOURCE_DIR}/Earthrise
     ${CMAKE_SOURCE_DIR}/NeuronClient
     ${CMAKE_SOURCE_DIR}/NeuronClient/Graphics
     ${CMAKE_SOURCE_DIR}/NeuronClient/Audio

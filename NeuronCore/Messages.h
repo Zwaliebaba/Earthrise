@@ -261,4 +261,90 @@ namespace Neuron
       Text       = _r.ReadString();
     }
   };
+
+  // ------------------------------------------------------------------
+  // ShipStatus (server → client, unreliable)
+  // Sent each tick for entities the client cares about (flagship, target, fleet).
+  // ------------------------------------------------------------------
+  struct ShipStatusEntry
+  {
+    uint32_t HandleId    = 0;
+    float    ShieldHP    = 0.0f;
+    float    ShieldMaxHP = 0.0f;
+    float    ArmorHP     = 0.0f;
+    float    ArmorMaxHP  = 0.0f;
+    float    HullHP      = 0.0f;
+    float    HullMaxHP   = 0.0f;
+    float    Energy      = 0.0f;
+    float    EnergyMax   = 0.0f;
+    float    Speed       = 0.0f;
+    float    MaxSpeed    = 0.0f;
+    uint16_t FactionId   = 0;
+  };
+
+  struct ShipStatusMsg
+  {
+    std::vector<ShipStatusEntry> Ships;
+
+    void Write(DataWriter& _w) const
+    {
+      uint16_t count = static_cast<uint16_t>(Ships.size());
+      _w.Write<uint16_t>(count);
+      for (const auto& s : Ships)
+      {
+        _w.Write<uint32_t>(s.HandleId);
+        _w.Write<float>(s.ShieldHP);
+        _w.Write<float>(s.ShieldMaxHP);
+        _w.Write<float>(s.ArmorHP);
+        _w.Write<float>(s.ArmorMaxHP);
+        _w.Write<float>(s.HullHP);
+        _w.Write<float>(s.HullMaxHP);
+        _w.Write<float>(s.Energy);
+        _w.Write<float>(s.EnergyMax);
+        _w.Write<float>(s.Speed);
+        _w.Write<float>(s.MaxSpeed);
+        _w.Write<uint16_t>(s.FactionId);
+      }
+    }
+
+    void Read(DataReader& _r)
+    {
+      uint16_t count = _r.Read<uint16_t>();
+      Ships.resize(count);
+      for (auto& s : Ships)
+      {
+        s.HandleId    = _r.Read<uint32_t>();
+        s.ShieldHP    = _r.Read<float>();
+        s.ShieldMaxHP = _r.Read<float>();
+        s.ArmorHP     = _r.Read<float>();
+        s.ArmorMaxHP  = _r.Read<float>();
+        s.HullHP      = _r.Read<float>();
+        s.HullMaxHP   = _r.Read<float>();
+        s.Energy      = _r.Read<float>();
+        s.EnergyMax   = _r.Read<float>();
+        s.Speed       = _r.Read<float>();
+        s.MaxSpeed    = _r.Read<float>();
+        s.FactionId   = _r.Read<uint16_t>();
+      }
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // PlayerInfo (server → client, reliable)
+  // Sent once after login to tell the client which entity is their flagship.
+  // ------------------------------------------------------------------
+  struct PlayerInfoMsg
+  {
+    EntityHandle FlagshipHandle;
+
+    void Write(DataWriter& _w) const
+    {
+      _w.Write<uint32_t>(FlagshipHandle.m_id);
+    }
+
+    void Read(DataReader& _r)
+    {
+      FlagshipHandle.m_id = _r.Read<uint32_t>();
+    }
+  };
 }

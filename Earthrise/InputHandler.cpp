@@ -3,6 +3,8 @@
 #include "ServerConnection.h"
 #include "ClientWorldState.h"
 #include "CommandTargeting.h"
+#include "TargetingUI.h"
+#include "ChatUI.h"
 #include "Camera.h"
 
 using namespace Neuron;
@@ -10,16 +12,80 @@ using namespace Neuron;
 void InputHandler::Initialize(ServerConnection* _connection,
   ClientWorldState* _worldState,
   Neuron::Graphics::Camera* _camera,
-  CommandTargeting* _targeting)
+  CommandTargeting* _targeting,
+  TargetingUI* _targetingUI,
+  ChatUI* _chatUI)
 {
-  m_connection = _connection;
-  m_worldState = _worldState;
-  m_camera = _camera;
-  m_targeting = _targeting;
+  m_connection  = _connection;
+  m_worldState  = _worldState;
+  m_camera      = _camera;
+  m_targeting   = _targeting;
+  m_targetingUI = _targetingUI;
+  m_chatUI      = _chatUI;
 }
 
 void InputHandler::Update(float _deltaT, const InputState& _input)
 {
+  // Chat input mode consumes keyboard input
+  if (m_chatUI && m_chatUI->IsTyping())
+  {
+    // Enter commits the message
+    if (_input.IsActionActive(InputAction::ChatToggle))
+    {
+      std::string text = m_chatUI->CommitInput();
+      if (!text.empty() && m_connection)
+      {
+        ChatMsg msg;
+        msg.Channel = m_chatUI->ActiveChannel;
+        msg.SenderName = "Player1";
+        msg.Text = std::move(text);
+        DataWriter writer;
+        msg.Write(writer);
+        m_connection->SendReliable(MessageId::ChatMessage, writer.Data(), writer.Size());
+      }
+    }
+    // Backspace
+    else if (_input.IsKeyPressed(VK_BACK))
+    {
+      m_chatUI->Backspace();
+    }
+    // Escape cancels typing
+    else if (_input.IsKeyPressed(VK_ESCAPE))
+    {
+      m_chatUI->ToggleTyping();
+    }
+    // Type printable characters
+    else
+    {
+      for (int vk = 0x20; vk <= 0x7E; ++vk)
+      {
+        if (_input.IsKeyPressed(vk))
+        {
+          char c = static_cast<char>(vk);
+          if (!_input.IsShiftDown() && c >= 'A' && c <= 'Z')
+            c = c - 'A' + 'a'; // Lowercase
+          m_chatUI->TypeChar(c);
+        }
+      }
+    }
+    return; // Don't process game input while typing
+  }
+
+  // Toggle chat mode
+  if (m_chatUI && _input.IsActionActive(InputAction::ChatToggle))
+    m_chatUI->ToggleTyping();
+
+  // Target cycling
+  if (m_targetingUI)
+  {
+    if (_input.IsActionActive(InputAction::TargetCycleNext))
+      m_targetingUI->CycleNext();
+    else if (_input.IsActionActive(InputAction::TargetCyclePrev))
+      m_targetingUI->CyclePrev();
+    else if (_input.IsActionActive(InputAction::TargetNearest))
+      m_targetingUI->SelectNearest();
+  }
+
   HandleCameraMovement(_deltaT, _input);
   HandleFleetCommands(_input);
 

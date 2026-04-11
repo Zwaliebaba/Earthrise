@@ -20,6 +20,10 @@ enum class InputAction : uint8_t
   ToggleTacticalGrid,
   IssueCommand,    // Right-click — move-to or attack
   CameraAttach,    // Attach camera to selected unit
+  TargetCycleNext, // Tab — cycle to next target
+  TargetCyclePrev, // Shift+Tab — cycle to previous target
+  TargetNearest,   // T — select nearest target
+  ChatToggle,      // Enter — toggle chat input
   COUNT
 };
 
@@ -36,8 +40,11 @@ class InputState
 public:
   InputState() = default;
 
-  // Call at the start of each frame to prepare for new input.
+  // Call at the start of each frame to compute deltas and clear accumulators.
   void BeginFrame();
+
+  // Call at the end of each frame to snapshot previous state before next frame's messages.
+  void EndFrame();
 
   // Process a Windows message. Returns true if the message was consumed.
   bool ProcessMessage(UINT _message, WPARAM _wParam, LPARAM _lParam);

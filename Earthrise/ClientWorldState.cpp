@@ -135,3 +135,27 @@ void ClientWorldState::RegisterMeshName(uint32_t _hash, std::string_view _key)
 {
   m_meshHashToKey[_hash] = std::string(_key);
 }
+
+void ClientWorldState::ApplyShipStatus(const ShipStatusMsg& _msg)
+{
+  for (const auto& s : _msg.Ships)
+  {
+    auto it = m_entities.find(s.HandleId);
+    if (it == m_entities.end() || !it->second.Active)
+      continue;
+
+    auto& e = it->second;
+    e.ShieldHP    = s.ShieldHP;
+    e.ShieldMaxHP = s.ShieldMaxHP;
+    e.ArmorHP     = s.ArmorHP;
+    e.ArmorMaxHP  = s.ArmorMaxHP;
+    e.HullHP      = s.HullHP;
+    e.HullMaxHP   = s.HullMaxHP;
+    e.Energy      = s.Energy;
+    e.EnergyMax   = s.EnergyMax;
+    e.Speed       = s.Speed;
+    e.MaxSpeed    = s.MaxSpeed;
+    e.FactionId   = s.FactionId;
+    e.HasShipStats = true;
+  }
+}

@@ -8,6 +8,11 @@
 #include "InputHandler.h"
 #include "FleetSelectionUI.h"
 #include "CommandTargeting.h"
+#include "HUD.h"
+#include "TargetingUI.h"
+#include "ChatUI.h"
+#include "FleetPanel.h"
+#include "JumpgateUI.h"
 #include "ServerConnection.h"
 
 class GameApp : public GameMain
@@ -24,6 +29,9 @@ class GameApp : public GameMain
 
     // Input forwarding from WndProc.
     bool ProcessInput(UINT _message, WPARAM _wParam, LPARAM _lParam);
+
+    // Snapshot input state at end of frame (before next frame's messages).
+    void EndInputFrame();
 
   protected:
     std::string m_isoLang;
@@ -64,6 +72,11 @@ class GameApp : public GameMain
     // UI
     FleetSelectionUI m_fleetSelectionUI;
     CommandTargeting m_commandTargeting;
+    HUD m_hud;
+    TargetingUI m_targetingUI;
+    ChatUI m_chatUI;
+    FleetPanel m_fleetPanel;
+    JumpgateUI m_jumpgateUI;
 
     bool m_initialized = false;
     bool m_connected = false;

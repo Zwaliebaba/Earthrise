@@ -42,6 +42,10 @@ namespace Neuron
     // Chat
     ChatMessage         = 0x0030,
 
+    // Ship / entity status (server → client)
+    ShipStatus          = 0x0040,
+    PlayerInfo          = 0x0041,
+
     // Acknowledgement (reliability layer)
     Ack                 = 0x00FF,
   };

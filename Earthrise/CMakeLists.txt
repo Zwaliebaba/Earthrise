@@ -8,6 +8,11 @@ add_executable(Earthrise WIN32
     InputHandler.cpp
     FleetSelectionUI.cpp
     CommandTargeting.cpp
+    HUD.cpp
+    TargetingUI.cpp
+    ChatUI.cpp
+    FleetPanel.cpp
+    JumpgateUI.cpp
     WinMain.cpp
     pch.cpp
     Earthrise.rc        # embeds app.manifest

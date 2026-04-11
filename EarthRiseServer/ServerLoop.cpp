@@ -69,6 +69,7 @@ namespace EarthRise
 
       // Broadcast state to clients
       m_broadcaster.BroadcastState(currentTime);
+      m_broadcaster.BroadcastShipStatus(currentTime);
 
       // Yield to avoid burning CPU when idle.
       double elapsed = static_cast<double>(Neuron::Timer::Core::GetElapsedSeconds());

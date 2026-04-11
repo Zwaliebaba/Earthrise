@@ -17,6 +17,9 @@ namespace EarthRise
     // Send state snapshots to all connected clients for the current tick.
     void BroadcastState(double _currentTime);
 
+    // Send ship status (HP/shields/energy) to all connected clients.
+    void BroadcastShipStatus(double _currentTime);
+
   private:
     // Send EntitySpawn messages for all zone entities to a newly connected client.
     void SendInitialSpawns(uint32_t _sessionId, double _currentTime);

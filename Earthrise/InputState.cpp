@@ -4,11 +4,6 @@
 
 void InputState::BeginFrame()
 {
-  // Save previous state
-  std::memcpy(m_prevKeyDown, m_keyDown, sizeof(m_keyDown));
-  m_prevLeftMouseDown = m_leftMouseDown;
-  m_prevRightMouseDown = m_rightMouseDown;
-
   // Compute mouse delta from last frame
   m_mouseDeltaX = m_mouseX - m_prevMouseX;
   m_mouseDeltaY = m_mouseY - m_prevMouseY;
@@ -18,6 +13,15 @@ void InputState::BeginFrame()
   // Reset per-frame accumulators
   m_scrollDelta = 0.0f;
   m_touchPoints.clear();
+}
+
+void InputState::EndFrame()
+{
+  // Snapshot current state as previous — must be called after Update/Render
+  // and before the next frame's messages arrive.
+  std::memcpy(m_prevKeyDown, m_keyDown, sizeof(m_keyDown));
+  m_prevLeftMouseDown = m_leftMouseDown;
+  m_prevRightMouseDown = m_rightMouseDown;
 }
 
 bool InputState::ProcessMessage(UINT _message, WPARAM _wParam, LPARAM _lParam)
@@ -149,6 +153,10 @@ bool InputState::IsActionActive(InputAction _action) const noexcept
   case InputAction::ToggleTacticalGrid: return IsKeyPressed('G');
   case InputAction::IssueCommand:       return IsRightMousePressed();
   case InputAction::CameraAttach:       return IsKeyPressed('F');
+  case InputAction::TargetCycleNext:    return IsKeyPressed(VK_TAB) && !IsShiftDown();
+  case InputAction::TargetCyclePrev:    return IsKeyPressed(VK_TAB) && IsShiftDown();
+  case InputAction::TargetNearest:      return IsKeyPressed('T');
+  case InputAction::ChatToggle:         return IsKeyPressed(VK_RETURN);
   default: return false;
   }
 }

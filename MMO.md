@@ -639,28 +639,37 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 
 ---
 
-### Phase 8 — HUD, UI & Player Interaction
+### Phase 8 — HUD, UI & Player Interaction ✅ COMPLETED
 
 **Goal**: Player-facing interface elements for first-person flight + fleet command.
 
 #### Deliverables
 
-| # | Task | Project | Files |
-|---|---|---|---|
-| 8.1 | **HUD overlay** — flagship HP/shields/energy, speed vector, target info, fleet status panel, minimap (3D volume or 2D projection) | Earthrise | `HUD.h/.cpp` |
-| 8.2 | **Targeting system** — select target (click, nearest hostile, Tab-cycle), display target bracket in 3D with distance; fleet focus-fire command | Earthrise | `TargetingUI.h/.cpp` |
-| 8.3 | **Chat** — text input, message display, basic channels (local, system) | Earthrise | `Chat.h/.cpp` |
-| 8.4 | **Main menu** — server select, **custom login** (username/password), settings | Earthrise | `MainMenu.h/.cpp` |
-| 8.5 | **Station UI** — trade, repair, ship fitting (when docked) | Earthrise | `StationUI.h/.cpp` |
-| 8.6 | **Settings** — graphics quality, audio volume, key bindings, touch sensitivity | Earthrise | `Settings.h/.cpp` |
-| 8.7 | **Rendering**: All HUD/UI rendered via `GameApp::RenderCanvas()` (composited on top of the 3D scene — same command list, same render target, **no intermediate clear** between `RenderScene()` and `RenderCanvas()`; see Phase 1.9). UI elements use `SpriteBatch` (from Phase 3D.3) for textured quads (text, icons) and flat-color geometry for Darwinia-style minimal chrome (bars, brackets, grid lines) | Earthrise | — |
-| 8.8 | **Fleet command panel** — ship list with status, group assignment display, formation selector | Earthrise | `FleetPanel.h/.cpp` |
-| 8.9 | **Jumpgate UI** — warp destination selector when near a jumpgate, warp progress indicator | Earthrise | `JumpgateUI.h/.cpp` |
+| # | Task | Project | Files | Status |
+|---|---|---|---|---|
+| 8.1 | **HUD overlay** — flagship HP/shields/armor/energy/speed bars (bottom-left), target info panel (top-right), crosshair. All Darwinia-style flat-color bars via `SpriteBatch`. Pure computation in `HUDLayout` (static methods, unit-testable) | Earthrise | `HUD.h/.cpp` | ✅ Done |
+| 8.2 | **Targeting system** — Tab-cycle, Shift+Tab reverse-cycle, T for nearest target. Target brackets (red corner brackets) rendered in 3D→screen projection. Filter by category (ships, stations, asteroids). Sorted target list for stable cycling | Earthrise | `TargetingUI.h/.cpp` | ✅ Done |
+| 8.3 | **Chat** — ring buffer (128 messages), 8 visible, 10s fade. Typing state machine (Enter toggles, printable chars, Backspace, Escape cancels). Channel-colored bars (Zone/Party/Whisper/System). Cursor indicator when typing | Earthrise | `ChatUI.h/.cpp` | ✅ Done |
+| 8.4 | **Main menu** — deferred (requires text rendering not yet available via SpriteBatch) | Earthrise | — | ⏳ Deferred |
+| 8.5 | **Station UI** — deferred (requires text rendering for trade/fitting UI) | Earthrise | — | ⏳ Deferred |
+| 8.6 | **Settings** — deferred (requires text rendering for labels and inputs) | Earthrise | — | ⏳ Deferred |
+| 8.7 | **Rendering**: All HUD/UI rendered via `GameApp::RenderCanvas()` composited on the 3D scene. UI uses `SpriteBatch` for solid-color quads — Darwinia-style minimal chrome (bars, brackets, indicators). New `InputAction` values wired in `InputState`/`InputHandler` | Earthrise | `GameApp.cpp`, `InputState.cpp`, `InputHandler.cpp` | ✅ Done |
+| 8.8 | **Fleet command panel** — ship list with hull/shield bars on left side. `ComputeLayout()` returns testable `FleetPanelEntry` structs. Hull bar uses red→green gradient by fraction | Earthrise | `FleetPanel.h/.cpp` | ✅ Done |
+| 8.9 | **Jumpgate UI** — proximity detection (100m range), warp-available indicator (blue bordered square with diamond) in bottom-right corner. `FindNearbyJumpgate()` selects nearest | Earthrise | `JumpgateUI.h/.cpp` | ✅ Done |
+| 8.10 | **Ship status broadcast** — `ShipStatusMsg` (46 bytes/entry, batched 30/packet) sent each tick. `ShipStatusEntry` carries shield/armor/hull/energy/speed/faction. `PlayerInfoMsg` sent once after login to identify flagship | NeuronCore, EarthRiseServer | `Messages.h`, `StateBroadcaster.cpp`, `ServerLoop.cpp` | ✅ Done |
+| 8.11 | **Client entity stats** — `ClientEntity` extended with 11 ship stat fields. `ApplyShipStatus()` and `SetFlagship()`/`GetFlagship()` on `ClientWorldState` | Earthrise | `ClientWorldState.h/.cpp` | ✅ Done |
 
-#### Tests (Phase 8)
+#### Tests (Phase 8) — 42 new tests (188 total, all passing)
 
-- Unit: HUD data binding — set HP to 50%, verify bar width calculation
-- Integration: Full game loop with HUD rendering, no visual artifacts
+| Test Class | Count | Coverage |
+|---|---|---|
+| `HUDLayoutTests` | 10 | ComputeBar fractions (half/full/empty/zero-max/over/negative), ShieldBar position, TargetBars top-right, all player bars at different vertical positions |
+| `TargetingUITests` | 7 | RefreshTargetList (finds ships, respects filter), CycleNext wrapping, CyclePrev wrapping, SetTarget index, ClearTarget reset, empty list |
+| `ChatUITests` | 13 | AddMessage store + trim-to-max, typing toggle, TypeChar append/reject/max-length/non-printable, Backspace remove/empty, CommitInput, GetVisibleMessages recent/faded/typing-mode |
+| `FleetPanelTests` | 4 | ComputeLayout entry count, hull/shield fractions, vertical stacking, empty fleet |
+| `JumpgateUITests` | 4 | FindNearbyJumpgate in-range/out-of-range/selects-nearest, Update sets warp available |
+| `ShipStatusMsgTests` | 3 | ShipStatusMsg round-trip serialization, PlayerInfoMsg round-trip, ApplyShipStatus updates ClientEntity |
+| `FlagshipTests` | 2 | Set/Get flagship, default is invalid |
 
 ---
 

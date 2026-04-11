@@ -101,8 +101,15 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
   m_inputState.SetScreenSize(width, height);
   m_commandTargeting.Initialize(&m_worldState, &m_camera);
   m_commandTargeting.SetScreenSize(width, height);
-  m_inputHandler.Initialize(&m_serverConnection, &m_worldState, &m_camera, &m_commandTargeting);
+  m_inputHandler.Initialize(&m_serverConnection, &m_worldState, &m_camera,
+    &m_commandTargeting, &m_targetingUI, &m_chatUI);
   m_fleetSelectionUI.Initialize(&m_worldState, &m_camera);
+
+  // HUD and UI setup
+  m_hud.Initialize(&m_worldState);
+  m_targetingUI.Initialize(&m_worldState, &m_camera);
+  m_fleetPanel.Initialize(&m_worldState);
+  m_jumpgateUI.Initialize(&m_worldState, &m_camera);
 
   // Connect to the local server.
   m_serverConnection.Connect("127.0.0.1", 7777, "Player1");
@@ -123,6 +130,11 @@ void GameApp::Shutdown()
 bool GameApp::ProcessInput(UINT _message, WPARAM _wParam, LPARAM _lParam)
 {
   return m_inputState.ProcessMessage(_message, _wParam, _lParam);
+}
+
+void GameApp::EndInputFrame()
+{
+  m_inputState.EndFrame();
 }
 
 void GameApp::Update(float _deltaT)
@@ -155,6 +167,20 @@ void GameApp::Update(float _deltaT)
   // Update fleet selection UI (box-drag state)
   m_fleetSelectionUI.Update(_deltaT, m_inputState);
   m_fleetSelectionUI.SetSelection(m_inputHandler.GetSelectedShips());
+
+  // Update targeting and HUD
+  m_targetingUI.RefreshTargetList();
+  m_hud.SetFocusEntity(m_worldState.GetFlagship());
+  m_hud.SetTarget(m_targetingUI.GetTarget());
+
+  // Update fleet panel with selected ships
+  m_fleetPanel.SetFleet(m_inputHandler.GetSelectedShips());
+
+  // Update jumpgate proximity
+  m_jumpgateUI.Update(m_worldState.GetFlagship());
+
+  // Update chat message ages
+  m_chatUI.Update(_deltaT);
 
   // Camera update
   m_camera.Update(_deltaT);
@@ -219,6 +245,24 @@ void GameApp::ProcessServerMessages()
       ChatMsg chat;
       chat.Read(reader);
       DebugTrace("[Chat] {}: {}\n", chat.SenderName, chat.Text);
+      m_chatUI.AddMessage(chat.Channel, chat.SenderName, chat.Text);
+      break;
+    }
+
+    case MessageId::ShipStatus:
+    {
+      ShipStatusMsg status;
+      status.Read(reader);
+      m_worldState.ApplyShipStatus(status);
+      break;
+    }
+
+    case MessageId::PlayerInfo:
+    {
+      PlayerInfoMsg info;
+      info.Read(reader);
+      m_worldState.SetFlagship(info.FlagshipHandle);
+      m_hud.SetFocusEntity(info.FlagshipHandle);
       break;
     }
 
@@ -341,4 +385,19 @@ void GameApp::RenderCanvas()
 
   // Fleet selection UI (brackets and drag box)
   m_fleetSelectionUI.Render(cmdList, m_cbAlloc, m_spriteBatch, screenW, screenH);
+
+  // Target bracket
+  m_targetingUI.Render(cmdList, m_cbAlloc, m_spriteBatch, screenW, screenH);
+
+  // HUD overlay (player bars, target panel, crosshair)
+  m_hud.Render(cmdList, m_cbAlloc, m_spriteBatch, screenW, screenH);
+
+  // Fleet command panel
+  m_fleetPanel.Render(cmdList, m_cbAlloc, m_spriteBatch, screenW, screenH);
+
+  // Chat
+  m_chatUI.Render(cmdList, m_cbAlloc, m_spriteBatch, screenW, screenH);
+
+  // Jumpgate warp indicator
+  m_jumpgateUI.Render(cmdList, m_cbAlloc, m_spriteBatch, screenW, screenH);
 }

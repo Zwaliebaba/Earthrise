@@ -31,6 +31,20 @@ struct ClientEntity
   XMFLOAT3 TargetPosition = {};
   XMFLOAT4 TargetOrientation = { 0, 0, 0, 1 };
 
+  // Ship stats (populated from ShipStatusMsg when available)
+  float ShieldHP    = 0.0f;
+  float ShieldMaxHP = 0.0f;
+  float ArmorHP     = 0.0f;
+  float ArmorMaxHP  = 0.0f;
+  float HullHP      = 0.0f;
+  float HullMaxHP   = 0.0f;
+  float Energy      = 0.0f;
+  float EnergyMax   = 0.0f;
+  float Speed       = 0.0f;
+  float MaxSpeed    = 0.0f;
+  uint16_t FactionId = 0;
+  bool HasShipStats = false; // True once a ShipStatusMsg updates this entity
+
   // Mesh key string for MeshCache lookup (resolved from MeshHash + Category)
   std::string MeshKey;
 };
@@ -48,6 +62,13 @@ public:
 
   // Apply a state snapshot from the server. Updates interpolation targets.
   void ApplySnapshot(const Neuron::StateSnapshotMsg& _msg);
+
+  // Apply ship status updates (HP, shields, energy, speed).
+  void ApplyShipStatus(const Neuron::ShipStatusMsg& _msg);
+
+  // Set the player's flagship handle (from PlayerInfoMsg).
+  void SetFlagship(Neuron::EntityHandle _handle) noexcept { m_flagshipHandle = _handle; }
+  [[nodiscard]] Neuron::EntityHandle GetFlagship() const noexcept { return m_flagshipHandle; }
 
   // Advance interpolation by _deltaT seconds.
   // Call once per frame before rendering.
@@ -97,6 +118,9 @@ private:
 
   // MeshHash → MeshKey reverse lookup.
   std::unordered_map<uint32_t, std::string> m_meshHashToKey;
+
+  // Player's flagship handle.
+  Neuron::EntityHandle m_flagshipHandle;
 
   uint32_t m_activeCount = 0;
   uint32_t m_lastServerTick = 0;

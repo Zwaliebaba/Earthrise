@@ -43,6 +43,9 @@ int WINAPI wWinMain(HINSTANCE _hInstance, HINSTANCE _hPrevInstance, LPWSTR _cmdL
       main->RenderScene();
       main->RenderCanvas();
       Graphics::Core::Present();
+
+      // Snapshot input state after frame completes, before next frame's messages.
+      main->EndInputFrame();
     }
   }
 
