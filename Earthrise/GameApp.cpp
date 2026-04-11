@@ -21,14 +21,14 @@ namespace
 
   constexpr TestObject c_testObjects[] =
   {
-    { "Asteroids/Asteroid01",             {  0,  0,  50 }, { 0.8f, 0.6f, 0.2f, 1 }, 1.0f },  // Warm orange
-    { "Crates/Crate01",                   { 30,  5,  40 }, { 0.0f, 1.0f, 0.5f, 1 }, 1.0f },  // Neon green
-    { "Hulls/HullShuttle",                { -20,  0,  60 }, { 0.0f, 0.8f, 1.0f, 1 }, 1.0f },  // Cyan
-    { "Jumpgates/Jumpgate01",             { 80,  0, 100 }, { 1.0f, 0.0f, 1.0f, 1 }, 1.0f },  // Magenta
-    { "Projectiles/MissileLight",         { 15, 10,  45 }, { 1.0f, 1.0f, 0.0f, 1 }, 1.0f },  // Yellow
-    { "SpaceObjects/DebrisGenericBarrel01",{-40, -5,  55 }, { 0.5f, 0.5f, 0.5f, 1 }, 1.0f },  // Grey
-    { "Stations/Mining01",                {100, 20, 120 }, { 1.0f, 0.5f, 0.0f, 1 }, 1.0f },  // Orange
-    { "Turrets/BallisticTurret01",        { 10,-10,  35 }, { 0.3f, 0.7f, 1.0f, 1 }, 1.0f },  // Light blue
+    { "Asteroids/Asteroid01",             {  0,  0,  10 }, { 0.8f, 0.6f, 0.2f, 1 }, 1.0f },  // Warm orange
+    { "Crates/Crate01",                   {  5,  1,   8 }, { 0.0f, 1.0f, 0.5f, 1 }, 1.0f },  // Neon green
+    { "Hulls/HullShuttle",                { -4,  0,  12 }, { 0.0f, 0.8f, 1.0f, 1 }, 1.0f },  // Cyan
+    { "Jumpgates/Jumpgate01",             { 10,  0,  18 }, { 1.0f, 0.0f, 1.0f, 1 }, 1.0f },  // Magenta
+    { "Projectiles/MissileLight",         {  3,  2,   9 }, { 1.0f, 1.0f, 0.0f, 1 }, 1.0f },  // Yellow
+    { "SpaceObjects/DebrisGenericBarrel01",{ -6, -1,  11 }, { 0.5f, 0.5f, 0.5f, 1 }, 1.0f },  // Grey
+    { "Stations/Mining01",                { 14,  3,  20 }, { 1.0f, 0.5f, 0.0f, 1 }, 1.0f },  // Orange
+    { "Turrets/BallisticTurret01",        {  2, -2,   7 }, { 0.3f, 0.7f, 1.0f, 1 }, 1.0f },  // Light blue
   };
 }
 
@@ -65,8 +65,8 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
   auto outputSize = Core::GetOutputSize();
   float width = static_cast<float>(outputSize.right - outputSize.left);
   float height = static_cast<float>(outputSize.bottom - outputSize.top);
-  m_camera.SetPerspective(XM_PIDIV4, width / height, 0.5f, 20000.0f);
-  m_camera.SetPosition(XMVectorSet(0, 5, -20, 0));
+  m_camera.SetPerspective(XM_PIDIV4, width / height, 0.1f, 20000.0f);
+  m_camera.SetPosition(XMVectorSet(0, 2, 0, 0));
   m_camera.SetLookDirection(Math::Vector3::FORWARD);
   m_camera.SetMode(CameraMode::FreeFly);
 

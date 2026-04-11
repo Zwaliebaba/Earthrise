@@ -1,5 +1,5 @@
-// FlatColorVS.hlsl — Flat-color vertex shader
-// MVP transform with nointerpolation for flat shading.
+// FlatColorVS.hlsl — Vertex shader for lit flat-color rendering.
+// Smooth normals + world position for per-pixel lighting.
 
 cbuffer FrameConstants : register(b0)
 {
@@ -24,17 +24,19 @@ struct VSInput
 
 struct VSOutput
 {
-    float4 Position : SV_Position;
-    nointerpolation float3 WorldNormal : NORMAL;
+    float4 Position      : SV_Position;
+    float3 WorldNormal   : NORMAL;
+    float3 WorldPosition : TEXCOORD0;
 };
 
 VSOutput main(VSInput input)
 {
     VSOutput output;
 
-    float4 worldPos = mul(float4(input.Position, 1.0), World);
-    output.Position = mul(worldPos, ViewProjection);
-    output.WorldNormal = normalize(mul(input.Normal, (float3x3) World));
+    float4 worldPos      = mul(float4(input.Position, 1.0), World);
+    output.Position      = mul(worldPos, ViewProjection);
+    output.WorldNormal   = normalize(mul(input.Normal, (float3x3) World));
+    output.WorldPosition = worldPos.xyz;
 
     return output;
 }
