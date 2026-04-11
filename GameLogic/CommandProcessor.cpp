@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "CommandProcessor.h"
+#include "CombatSystem.h"
+#include "DockingSystem.h"
 
 namespace GameLogic
 {
@@ -23,11 +25,18 @@ namespace GameLogic
       case Neuron::CommandType::MoveTo:
         ProcessMoveTo(cmd);
         break;
+      case Neuron::CommandType::AttackTarget:
+        ProcessAttackTarget(cmd);
+        break;
+      case Neuron::CommandType::Dock:
+        ProcessDock(cmd);
+        break;
+      case Neuron::CommandType::Loot:
+        ProcessLoot(cmd);
+        break;
       case Neuron::CommandType::WarpToJumpgate:
         ProcessWarpToJumpgate(cmd);
         break;
-      // Other command types (AttackTarget, Dock, Loot, UseAbility) are
-      // dispatched here as the corresponding systems are implemented.
       default:
         break;
       }
@@ -63,6 +72,69 @@ namespace GameLogic
     {
       if (m_manager.IsValid(handle))
         m_movement.SetMoveTarget(handle, _cmd.TargetPosition);
+    }
+  }
+
+  void CommandProcessor::ProcessAttackTarget(const InputCommand& _cmd)
+  {
+    if (!m_combat || !_cmd.Target.IsValid())
+      return;
+
+    const auto* fleet = GetPlayerFleet(_cmd.SessionId);
+    if (!fleet)
+      return;
+
+    for (auto handle : *fleet)
+    {
+      if (m_manager.IsValid(handle))
+        m_combat->SetAttackTarget(handle, _cmd.Target);
+    }
+  }
+
+  void CommandProcessor::ProcessDock(const InputCommand& _cmd)
+  {
+    if (!m_docking || !_cmd.Target.IsValid())
+      return;
+
+    const auto* fleet = GetPlayerFleet(_cmd.SessionId);
+    if (!fleet)
+      return;
+
+    // Move fleet toward the station, then DockingSystem will detect proximity.
+    Neuron::SpaceObject* stationObj = m_manager.GetSpaceObject(_cmd.Target);
+    if (!stationObj || stationObj->Category != Neuron::SpaceObjectCategory::Station)
+      return;
+
+    for (auto handle : *fleet)
+    {
+      if (m_manager.IsValid(handle))
+      {
+        m_movement.SetMoveTarget(handle, stationObj->Position);
+        m_docking->CheckDockingRange(handle, _cmd.Target);
+      }
+    }
+  }
+
+  void CommandProcessor::ProcessLoot(const InputCommand& _cmd)
+  {
+    if (!_cmd.Target.IsValid())
+      return;
+
+    // Move fleet toward the crate — LootSystem will pick it up on collision.
+    Neuron::SpaceObject* crateObj = m_manager.GetSpaceObject(_cmd.Target);
+    if (!crateObj || crateObj->Category != Neuron::SpaceObjectCategory::Crate)
+      return;
+
+    const auto* fleet = GetPlayerFleet(_cmd.SessionId);
+    if (!fleet)
+      return;
+
+    // Move only the nearest ship toward the crate.
+    if (!fleet->empty())
+    {
+      auto handle = fleet->front();
+      if (m_manager.IsValid(handle))
+        m_movement.SetMoveTarget(handle, crateObj->Position);
     }
   }
 

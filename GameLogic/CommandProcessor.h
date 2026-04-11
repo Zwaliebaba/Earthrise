@@ -5,6 +5,9 @@
 
 namespace GameLogic
 {
+  class CombatSystem;
+  class DockingSystem;
+
   // CommandProcessor — dequeues player fleet commands and dispatches them
   // to the appropriate subsystems (movement, combat, docking, etc.).
   // Server-only.
@@ -12,6 +15,10 @@ namespace GameLogic
   {
   public:
     CommandProcessor(SpaceObjectManager& _manager, MovementSystem& _movement);
+
+    // Set optional system references (set after construction to break circular deps).
+    void SetCombatSystem(CombatSystem* _combat) noexcept { m_combat = _combat; }
+    void SetDockingSystem(DockingSystem* _docking) noexcept { m_docking = _docking; }
 
     // Enqueue a command from a player.
     void EnqueueCommand(const InputCommand& _cmd);
@@ -30,10 +37,15 @@ namespace GameLogic
 
   private:
     void ProcessMoveTo(const InputCommand& _cmd);
+    void ProcessAttackTarget(const InputCommand& _cmd);
+    void ProcessDock(const InputCommand& _cmd);
+    void ProcessLoot(const InputCommand& _cmd);
     void ProcessWarpToJumpgate(const InputCommand& _cmd);
 
     SpaceObjectManager& m_manager;
     MovementSystem&     m_movement;
+    CombatSystem*       m_combat  = nullptr;
+    DockingSystem*      m_docking = nullptr;
 
     std::vector<InputCommand> m_pendingCommands;
 

@@ -70,7 +70,8 @@ namespace Neuron::Server
       {
         uint64_t key = AddressKey(it->second->Address());
         m_addrToSession.erase(key);
-        Server::ServerLog("SessionManager: session {} timed out\n", id);
+        Server::ServerLog("SessionManager: player '{}' timed out (session {})\n",
+                   it->second->PlayerName(), id);
         m_sessions.erase(it);
       }
     }
@@ -242,7 +243,8 @@ namespace Neuron::Server
     (void)_payload;
     (void)_payloadSize;
 
-    Server::ServerLog("SessionManager: session {} disconnected\n", _session.SessionId());
+    Server::ServerLog("SessionManager: player '{}' disconnected (session {})\n",
+               _session.PlayerName(), _session.SessionId());
     _session.SetState(ClientSession::State::Disconnecting);
 
     // Remove immediately.

@@ -2,11 +2,17 @@
 add_library(GameLogic STATIC
     pch.cpp
     CollisionSystem.cpp
+    CombatSystem.cpp
     CommandProcessor.cpp
+    DockingSystem.cpp
     EntityPool.cpp
+    FleetSystem.cpp
     JumpgateSystem.cpp
+    LootSystem.cpp
     MovementSystem.cpp
+    NpcAI.cpp
     ObjectDefsLoader.cpp
+    ProjectileSystem.cpp
     SpaceObjectManager.cpp
     SpatialHash.cpp
 )
