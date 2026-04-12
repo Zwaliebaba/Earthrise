@@ -155,17 +155,20 @@ std::vector<CmoMeshData> CmoLoader::LoadFromMemory(const uint8_t* data, size_t s
     // Vertex buffers
     const auto numVBs = reader.Read<uint32_t>();
     std::vector<std::vector<FlatColorVertex>> vertexBuffers(numVBs);
+    std::vector<std::vector<XMFLOAT2>> texCoordBuffers(numVBs);
     for (uint32_t vb = 0; vb < numVBs; ++vb)
     {
       const auto numVertices = reader.Read<uint32_t>();
       vertexBuffers[vb].resize(numVertices);
+      texCoordBuffers[vb].resize(numVertices);
 
       for (uint32_t v = 0; v < numVertices; ++v)
       {
-        // Read position + normal (24 bytes), skip tangent+color+texcoord (40 bytes)
+        // Position(12) + Normal(12) + Tangent(16) + Color(4) + TexCoord(8) = 52
         reader.ReadBytes(&vertexBuffers[vb][v].Position, sizeof(XMFLOAT3));
         reader.ReadBytes(&vertexBuffers[vb][v].Normal, sizeof(XMFLOAT3));
-        reader.Skip(CMO_VERTEX_STRIDE - sizeof(XMFLOAT3) * 2); // Skip tangent, color, texcoord
+        reader.Skip(sizeof(XMFLOAT4) + sizeof(uint32_t)); // Skip tangent(16) + color(4)
+        reader.ReadBytes(&texCoordBuffers[vb][v], sizeof(XMFLOAT2));
       }
     }
 
@@ -191,6 +194,7 @@ std::vector<CmoMeshData> CmoLoader::LoadFromMemory(const uint8_t* data, size_t s
     {
       vbBaseVertex[vb] = vertexOffset;
       mesh.Vertices.insert(mesh.Vertices.end(), vertexBuffers[vb].begin(), vertexBuffers[vb].end());
+      mesh.TexCoords.insert(mesh.TexCoords.end(), texCoordBuffers[vb].begin(), texCoordBuffers[vb].end());
       vertexOffset += static_cast<uint32_t>(vertexBuffers[vb].size());
     }
 

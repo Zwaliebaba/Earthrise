@@ -42,14 +42,14 @@ set_source_files_properties(Earthrise.rc PROPERTIES
 )
 
 
-# ── Deploy mesh assets next to the executable ─────────────────────────────
-set(MESH_SOURCE_DIR "${CMAKE_SOURCE_DIR}/GameData/Meshes")
+# ── Deploy GameData next to the executable ────────────────────────────────
+set(GAMEDATA_SOURCE_DIR "${CMAKE_SOURCE_DIR}/GameData")
 
-if(EXISTS "${MESH_SOURCE_DIR}")
+if(EXISTS "${GAMEDATA_SOURCE_DIR}")
     add_custom_command(TARGET Earthrise POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${MESH_SOURCE_DIR}"
-            "$<TARGET_FILE_DIR:Earthrise>/GameData/Meshes"
-        COMMENT "Copying mesh assets to GameData/Meshes..."
+            "${GAMEDATA_SOURCE_DIR}"
+            "$<TARGET_FILE_DIR:Earthrise>/GameData"
+        COMMENT "Copying GameData..."
     )
 endif()

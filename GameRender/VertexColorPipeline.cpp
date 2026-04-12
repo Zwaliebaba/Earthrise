@@ -5,6 +5,9 @@ using namespace Neuron::Graphics;
 
 namespace
 {
+  // Landscape vertex shader — single-pass with barycentric wireframe.
+  // Transforms position, computes per-vertex lighting, passes barycentric
+  // coordinates (encoded in TexCoord0) for edge detection in the pixel shader.
   constexpr const char* c_vsSource = R"(
 cbuffer FrameConstants : register(b0)
 {
@@ -22,79 +25,82 @@ cbuffer DrawConstants : register(b1)
 
 struct VSInput
 {
-    float3 Position : POSITION;
-    float3 Normal   : NORMAL;
-    float4 Color    : COLOR;
+    float3 Position  : POSITION;
+    float3 Normal    : NORMAL;
+    float4 Color     : COLOR;
+    float2 TexCoord0 : TEXCOORD0;
 };
 
 struct VSOutput
 {
-    float4 Position      : SV_Position;
-    float3 WorldNormal   : NORMAL;
-    float3 WorldPosition : TEXCOORD0;
-    float4 Color         : COLOR;
+    float4 Position  : SV_POSITION;
+    float4 Color     : COLOR0;
+    float2 Bary      : TEXCOORD0;
 };
 
 VSOutput main(VSInput input)
 {
     VSOutput output;
-    float4 worldPos      = mul(float4(input.Position, 1.0), World);
-    output.Position      = mul(worldPos, ViewProjection);
-    output.WorldNormal   = normalize(mul(input.Normal, (float3x3) World));
-    output.WorldPosition = worldPos.xyz;
-    output.Color         = input.Color;
+
+    // Transform position
+    float4 worldPos = mul(float4(input.Position, 1.0f), World);
+    output.Position = mul(worldPos, ViewProjection);
+
+    // Pass barycentric coordinates for wireframe edge detection
+    output.Bary = input.TexCoord0;
+
+    // ---- Lighting (always on for landscape) ----
+    float3 normal = normalize(mul(input.Normal, (float3x3) World));
+
+    // Color-material: vertex colour drives ambient + diffuse
+    float4 matAmbient = input.Color;
+    float4 matDiffuse = input.Color;
+
+    float3 ambient = AmbientIntensity * matAmbient.rgb;
+
+    // Simple directional light
+    float3 lightDir = normalize(-LightDirection);
+    float NdotL = max(dot(normal, lightDir), 0.0f);
+    float3 diffuse = NdotL * matDiffuse.rgb;
+
+    float3 finalColor = ambient + diffuse;
+    output.Color = float4(saturate(finalColor), matDiffuse.a);
+
     return output;
 }
 )";
 
+  // Landscape pixel shader — barycentric wireframe.
+  //
+  // Uses interpolated barycentric coordinates to detect triangle edges.
+  // Pixels near any edge (where a barycentric component approaches 0)
+  // receive an additive highlight tinted by the surface colour,
+  // reproducing the Darwinia triangle-outline aesthetic.
   constexpr const char* c_psSource = R"(
-cbuffer FrameConstants : register(b0)
-{
-    float4x4 ViewProjection;
-    float3   CameraPosition;
-    float    _Pad0;
-    float3   LightDirection;
-    float    AmbientIntensity;
-};
-
 struct PSInput
 {
-    float4 Position      : SV_Position;
-    float3 WorldNormal   : NORMAL;
-    float3 WorldPosition : TEXCOORD0;
-    float4 Color         : COLOR;
+    float4 Position  : SV_POSITION;
+    float4 Color     : COLOR0;
+    float2 Bary      : TEXCOORD0;
 };
 
-float4 main(PSInput input) : SV_Target
+float4 main(PSInput input) : SV_TARGET
 {
-    float3 N = normalize(input.WorldNormal);
-    float3 L = normalize(-LightDirection);
-    float3 V = normalize(CameraPosition - input.WorldPosition);
-    float3 H = normalize(L + V);
+    // Base terrain colour (vertex-lit)
+    float3 baseColor = input.Color.rgb;
 
-    // Hemisphere ambient: brighter from above (sky), darker below (ground)
-    float skyBlend = N.y * 0.5 + 0.5;
-    float ambient  = lerp(0.25, 0.65, skyBlend) * AmbientIntensity;
+    // Reconstruct 3-component barycentrics from the 2 interpolated values
+    float3 bary = float3(input.Bary, 1.0 - input.Bary.x - input.Bary.y);
 
-    // Half-Lambert diffuse: softer shadow falloff than standard Lambert
-    float NdotL       = dot(N, L);
-    float halfLambert = NdotL * 0.5 + 0.5;
-    float diffuse     = halfLambert * halfLambert;
+    // Screen-space anti-aliased wireframe: use fwidth for consistent line width
+    float3 fw = fwidth(bary);
+    float3 edgeFactor = smoothstep(float3(0,0,0), fw * 1.2, bary);
+    float edge = 1.0 - min(edgeFactor.x, min(edgeFactor.y, edgeFactor.z));
 
-    // Blinn-Phong specular highlight
-    float NdotH = saturate(dot(N, H));
-    float spec  = pow(NdotH, 40.0) * 0.25 * step(0.0, NdotL);
+    // Additive edge highlight tinted by surface colour (Darwinia style)
+    float3 color = baseColor + edge * baseColor;
 
-    // Fresnel rim for silhouette readability in space
-    float NdotV = saturate(dot(N, V));
-    float rim   = pow(1.0 - NdotV, 3.0) * 0.12;
-
-    // Use per-vertex color instead of per-draw constant
-    float3 result = input.Color.rgb * (ambient + diffuse * (1.0 - AmbientIntensity))
-                  + spec
-                  + rim * input.Color.rgb;
-
-    return float4(result, input.Color.a);
+    return float4(color, 1.0f);
 }
 )";
 }
@@ -102,11 +108,11 @@ float4 main(PSInput input) : SV_Target
 void VertexColorPipeline::Initialize()
 {
   auto vsByteCode = PipelineHelpers::CompileShader(
-    c_vsSource, strlen(c_vsSource), "main", "vs_5_1", "VertexColorVS");
+    c_vsSource, strlen(c_vsSource), "main", "vs_5_1", "LandscapeVS");
   auto psByteCode = PipelineHelpers::CompileShader(
-    c_psSource, strlen(c_psSource), "main", "ps_5_1", "VertexColorPS");
+    c_psSource, strlen(c_psSource), "main", "ps_5_1", "LandscapePS");
 
-  // Root signature: 2 root CBVs (b0 = frame, b1 = draw)
+  // Root signature: 2 root CBVs (b0, b1), no texture bindings
   CD3DX12_ROOT_PARAMETER rootParams[2];
   rootParams[ROOT_PARAM_FRAME_CBV].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
   rootParams[ROOT_PARAM_DRAW_CBV].InitAsConstantBufferView(1, 0, D3D12_SHADER_VISIBILITY_ALL);
@@ -116,14 +122,15 @@ void VertexColorPipeline::Initialize()
     D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
   m_rootSignature = PipelineHelpers::CreateRootSignature(rootSigDesc);
-  SetName(m_rootSignature.get(), L"VertexColorRootSig");
+  SetName(m_rootSignature.get(), L"LandscapeRootSig");
 
-  // Input layout: Position + Normal + Color
+  // Input layout: Position + Normal + Color + TexCoord0
   D3D12_INPUT_ELEMENT_DESC inputLayout[] =
   {
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,                            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, sizeof(XMFLOAT3),             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT,  0, sizeof(XMFLOAT3) * 2,        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,        0, sizeof(XMFLOAT3) * 2 + sizeof(XMFLOAT4), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
   };
 
   D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
@@ -147,7 +154,7 @@ void VertexColorPipeline::Initialize()
   psoDesc.SampleDesc.Count = 1;
 
   m_pso = PipelineHelpers::CreateGraphicsPSO(psoDesc);
-  SetName(m_pso.get(), L"VertexColorPSO");
+  SetName(m_pso.get(), L"LandscapePSO");
 }
 
 void VertexColorPipeline::BindPipeline(ID3D12GraphicsCommandList* cmdList) const

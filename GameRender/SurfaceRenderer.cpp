@@ -29,7 +29,8 @@ void SurfaceRenderer::Initialize()
 }
 
 void SurfaceRenderer::BeginFrame(ID3D12GraphicsCommandList* cmdList,
-  ConstantBufferAllocator& cbAlloc, const Camera& camera)
+  ConstantBufferAllocator& cbAlloc,
+  const Camera& camera)
 {
   m_pipeline.BindPipeline(cmdList);
 
@@ -118,32 +119,79 @@ std::unique_ptr<SurfaceMesh> SurfaceRenderer::BuildSurfaceMesh(
       highest = absY;
   }
 
-  // Build SurfaceVertex array (Position + Normal + Color)
+  // Build SurfaceVertex array (Position + Normal + Color).
+  // TexCoord0 will hold barycentric coordinates after unindexing.
   std::vector<SurfaceVertex> surfVerts(meshData.Vertices.size());
   for (size_t i = 0; i < meshData.Vertices.size(); ++i)
   {
-    surfVerts[i].Position = meshData.Vertices[i].Position;
-    surfVerts[i].Normal   = meshData.Vertices[i].Normal;
-    surfVerts[i].Color    = { 1.0f, 1.0f, 1.0f, 1.0f }; // default white
+    surfVerts[i].Position  = meshData.Vertices[i].Position;
+    surfVerts[i].Normal    = meshData.Vertices[i].Normal;
+    surfVerts[i].Color     = { 1.0f, 1.0f, 1.0f, 1.0f };
+    surfVerts[i].TexCoord0 = { 0.0f, 0.0f };
   }
 
   // Assign per-vertex colors from landscape texture
   BuildColorArray(surfVerts, meshData.Indices, texture, highest);
 
+  // Unindex: duplicate vertices per triangle so each vertex gets unique
+  // barycentric coordinates for wireframe edge detection in the pixel shader.
+  // v0=(1,0), v1=(0,1), v2=(0,0) → third component derived as 1-x-y.
+  const size_t triCount = meshData.Indices.size() / 3;
+  std::vector<SurfaceVertex> unindexedVerts;
+  unindexedVerts.reserve(triCount * 3);
+  std::vector<uint16_t> unindexedIndices;
+  unindexedIndices.reserve(triCount * 3);
+
+  static constexpr XMFLOAT2 baryCoords[3] = {
+    { 1.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f }
+  };
+
+  for (size_t t = 0; t < triCount; ++t)
+  {
+    uint16_t i0 = meshData.Indices[t * 3 + 0];
+    uint16_t i1 = meshData.Indices[t * 3 + 1];
+    uint16_t i2 = meshData.Indices[t * 3 + 2];
+
+    auto baseIdx = static_cast<uint16_t>(unindexedVerts.size());
+
+    SurfaceVertex v0 = surfVerts[i0]; v0.TexCoord0 = baryCoords[0];
+    SurfaceVertex v1 = surfVerts[i1]; v1.TexCoord0 = baryCoords[1];
+    SurfaceVertex v2 = surfVerts[i2]; v2.TexCoord0 = baryCoords[2];
+
+    unindexedVerts.push_back(v0);
+    unindexedVerts.push_back(v1);
+    unindexedVerts.push_back(v2);
+
+    unindexedIndices.push_back(baseIdx);
+    unindexedIndices.push_back(static_cast<uint16_t>(baseIdx + 1));
+    unindexedIndices.push_back(static_cast<uint16_t>(baseIdx + 2));
+  }
+
+  // Rebuild submeshes for the unindexed layout (indices are now sequential)
+  std::vector<CmoSubmesh> unindexedSubmeshes;
+  for (const auto& sub : meshData.Submeshes)
+  {
+    CmoSubmesh newSub{};
+    newSub.MaterialIndex = sub.MaterialIndex;
+    newSub.StartIndex = sub.StartIndex;
+    newSub.IndexCount = sub.IndexCount;
+    unindexedSubmeshes.push_back(newSub);
+  }
+
   // Upload to GPU
   auto mesh = std::make_unique<SurfaceMesh>();
-  mesh->VertexCount = static_cast<uint32_t>(surfVerts.size());
-  mesh->IndexCount  = static_cast<uint32_t>(meshData.Indices.size());
-  mesh->Submeshes   = meshData.Submeshes;
+  mesh->VertexCount = static_cast<uint32_t>(unindexedVerts.size());
+  mesh->IndexCount  = static_cast<uint32_t>(unindexedIndices.size());
+  mesh->Submeshes   = std::move(unindexedSubmeshes);
 
   mesh->VertexBuffer = GpuResourceManager::CreateStaticBuffer(
-    surfVerts.data(),
-    surfVerts.size() * sizeof(SurfaceVertex),
+    unindexedVerts.data(),
+    unindexedVerts.size() * sizeof(SurfaceVertex),
     L"SurfaceMeshVB");
 
   mesh->IndexBuffer = GpuResourceManager::CreateStaticBuffer(
-    meshData.Indices.data(),
-    meshData.Indices.size() * sizeof(uint16_t),
+    unindexedIndices.data(),
+    unindexedIndices.size() * sizeof(uint16_t),
     L"SurfaceMeshIB");
 
   return mesh;

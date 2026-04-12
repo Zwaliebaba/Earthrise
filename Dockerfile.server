@@ -15,9 +15,6 @@ COPY x64/Release/EarthRiseServer.exe .
 # Copy game data (zone definitions, object definitions).
 COPY GameData/ GameData/
 
-# Copy database migration scripts.
-COPY deploy/sql/ deploy/sql/
-
 # Game server port (UDP).
 EXPOSE 7777/udp
 

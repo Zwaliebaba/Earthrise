@@ -43,13 +43,13 @@ namespace Neuron::Graphics
     }
   };
 
-  // Renders meshes with per-vertex colors sampled from landscape gradient textures.
-  // Used for asteroids and planets to produce Darwinia-style terrain coloring.
+  // Renders meshes with per-vertex colors sampled from landscape gradient textures,
+  // with Darwinia-style edge lines computed via screen-space face-normal discontinuities.
   //
   // Workflow:
   //   1. Initialize() — loads landscape textures, creates pipeline
   //   2. GetSurfaceMesh() — produces a colored mesh (cached per meshKey + surfaceType)
-  //   3. BeginFrame() — binds pipeline and frame constants
+  //   3. BeginFrame() — binds pipeline, frame constants
   //   4. RenderObject() — draws a surface-colored mesh with a world transform
   class SurfaceRenderer
   {
@@ -58,7 +58,8 @@ namespace Neuron::Graphics
 
     // Call once per frame before rendering surface objects.
     void BeginFrame(ID3D12GraphicsCommandList* cmdList,
-      ConstantBufferAllocator& cbAlloc, const Camera& camera);
+      ConstantBufferAllocator& cbAlloc,
+      const Camera& camera);
 
     // Get (or build) a surface-colored mesh. Thread-safe for single-threaded rendering.
     // meshKey: MeshCache-style key (e.g., "Asteroids/Asteroid01")

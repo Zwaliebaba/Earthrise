@@ -6,12 +6,13 @@
 
 namespace Neuron::Graphics
 {
-  // Vertex with per-vertex color, used by SurfaceRenderer for landscape-colored meshes.
+  // Vertex with per-vertex color and UV, used by SurfaceRenderer for landscape-colored meshes.
   struct SurfaceVertex
   {
     XMFLOAT3 Position;
     XMFLOAT3 Normal;
     XMFLOAT4 Color;
+    XMFLOAT2 TexCoord0;
   };
 
   // Per-draw constants for vertex-color pipeline — world only (color comes from vertices).
@@ -20,7 +21,7 @@ namespace Neuron::Graphics
     XMFLOAT4X4 World;
   };
 
-  // Root signature + PSO for per-vertex-colored rendering.
+  // Root signature + PSO for per-vertex-colored rendering with screen-space edge detection.
   // Uses the same FrameConstants (b0) as FlatColorPipeline.
   // DrawConstants (b1) contains only the world matrix; color is per-vertex.
   class VertexColorPipeline

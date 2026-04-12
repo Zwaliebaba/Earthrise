@@ -26,6 +26,7 @@ namespace Neuron::Graphics
   {
     std::wstring Name;
     std::vector<FlatColorVertex> Vertices;
+    std::vector<XMFLOAT2> TexCoords; // Per-vertex UVs (parallel to Vertices)
     std::vector<uint16_t> Indices;
     std::vector<CmoSubmesh> Submeshes;
   };
