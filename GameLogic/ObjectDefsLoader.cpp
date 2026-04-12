@@ -45,6 +45,7 @@ namespace GameLogic
         def.MaxRotationSpeed = reader.Read<float>();
         def.ResourceType     = reader.Read<uint32_t>();
         def.MaxResource      = reader.Read<float>();
+        def.Surface          = reader.Read<Neuron::SurfaceType>();
         m_asteroidDefs.push_back(std::move(def));
         break;
       }

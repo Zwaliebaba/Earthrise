@@ -3,8 +3,10 @@ add_library(GameRender STATIC
     pch.cpp
     Camera.cpp
     CmoLoader.cpp
+    DdsLoader.cpp
     FlatColorPipeline.cpp
     GpuResourceManager.cpp
+    LandscapeTexture.cpp
     Mesh.cpp
     MeshCache.cpp
     PipelineHelpers.cpp
@@ -13,8 +15,10 @@ add_library(GameRender STATIC
     SpaceObjectRenderer.cpp
     SpriteBatch.cpp
     Starfield.cpp
+    SurfaceRenderer.cpp
     TacticalGrid.cpp
     UploadHeap.cpp
+    VertexColorPipeline.cpp
     ParticleSystem.cpp
     ParticleRenderer.cpp
 )

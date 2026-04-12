@@ -28,6 +28,7 @@ namespace EarthRise
       spawn.Position    = _obj.Position;
       spawn.Orientation = _obj.Orientation;
       spawn.Color       = _obj.Color;
+      spawn.Surface     = _obj.Surface;
 
       Neuron::DataWriter writer;
       spawn.Write(writer);

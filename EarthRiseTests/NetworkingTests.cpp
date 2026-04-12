@@ -177,6 +177,7 @@ namespace EarthRiseTests::Networking
       original.Position = { 100.0f, 200.0f, 300.0f };
       original.Orientation = { 0.0f, 0.707f, 0.0f, 0.707f };
       original.Color = { 0.5f, 1.0f, 0.0f, 1.0f };
+      original.Surface = SurfaceType::Desert;
 
       DataWriter w;
       original.Write(w);
@@ -193,6 +194,7 @@ namespace EarthRiseTests::Networking
       Assert::AreEqual(original.Position.z, parsed.Position.z);
       Assert::AreEqual(original.Orientation.w, parsed.Orientation.w);
       Assert::AreEqual(original.Color.x, parsed.Color.x);
+      Assert::IsTrue(original.Surface == parsed.Surface);
     }
 
     TEST_METHOD(EntityDespawnMsgRoundTrip)
@@ -452,6 +454,7 @@ namespace EarthRiseTests::Networking
       original.Position = { 1000, 2000, 3000 };
       original.Orientation = { 0, 0, 0, 1 };
       original.Color = { 1, 0.5f, 0.25f, 1 };
+      original.Surface = SurfaceType::IceCap;
 
       DataWriter w;
       original.Write(w);
@@ -474,6 +477,7 @@ namespace EarthRiseTests::Networking
       Assert::AreEqual(original.Handle.m_id, parsed.Handle.m_id);
       Assert::AreEqual(original.Position.x, parsed.Position.x);
       Assert::AreEqual(original.Color.y, parsed.Color.y);
+      Assert::IsTrue(original.Surface == parsed.Surface);
     }
   };
 }

@@ -61,6 +61,7 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
 
   // Renderers
   m_objectRenderer.Initialize();
+  m_surfaceRenderer.Initialize();
   m_starfield.Initialize();
   m_postProcess.Initialize(static_cast<UINT>(width), static_cast<UINT>(height));
   m_tacticalGrid.Initialize();
@@ -340,35 +341,30 @@ void GameApp::RenderScene()
 void GameApp::RenderWorldEntities(ID3D12GraphicsCommandList* _cmdList)
 {
   using namespace Neuron::Graphics;
-
-  m_objectRenderer.BeginFrame(_cmdList, m_cbAlloc, m_camera);
+  using Neuron::SpaceObjectCategory;
 
   int totalCount = 0, noKeyCount = 0, noMeshCount = 0, renderedCount = 0;
   float nearestDist = 99999.0f;
   XMVECTOR camPos = m_camera.GetPosition();
+
+  // Pass 1: Non-asteroid entities (flat-color pipeline)
+  m_objectRenderer.BeginFrame(_cmdList, m_cbAlloc, m_camera);
   m_worldState.ForEachActive([&](const ClientEntity& entity)
   {
-    ++totalCount;
-    // Resolve mesh from hash using category folder + mesh name
-    std::string meshKey = entity.MeshKey;
-    if (meshKey.empty())
-    {
-      ++noKeyCount;
+    if (entity.Category == SpaceObjectCategory::Asteroid)
       return;
-    }
+
+    ++totalCount;
+    std::string meshKey = entity.MeshKey;
+    if (meshKey.empty()) { ++noKeyCount; return; }
 
     const Mesh* mesh = m_meshCache.GetMesh(meshKey);
     if (!mesh) { ++noMeshCount; return; }
 
-    // Build world matrix from position + orientation
     XMFLOAT3 renderPos = entity.Position;
-
-    // Use predicted position if available
     const XMFLOAT3* predicted = m_prediction.GetPredictedPosition(entity.Handle);
-    if (predicted)
-      renderPos = *predicted;
+    if (predicted) renderPos = *predicted;
 
-    // Track nearest entity for diagnostics
     XMVECTOR entPos = XMLoadFloat3(&renderPos);
     float dist = XMVectorGetX(XMVector3Length(XMVectorSubtract(entPos, camPos)));
     if (dist < nearestDist) nearestDist = dist;
@@ -377,12 +373,42 @@ void GameApp::RenderWorldEntities(ID3D12GraphicsCommandList* _cmdList)
     XMMATRIX rotMatrix = XMMatrixRotationQuaternion(orientation);
     XMMATRIX world = rotMatrix *
       XMMatrixTranslation(renderPos.x, renderPos.y, renderPos.z);
-
-    // Origin-rebasing: subtract camera world position
     world.r[3] = XMVectorSubtract(world.r[3], XMVectorSetW(camPos, 0));
 
     XMVECTOR color = XMLoadFloat4(&entity.Color);
     m_objectRenderer.RenderObject(_cmdList, m_cbAlloc, mesh, world, color);
+    ++renderedCount;
+  });
+
+  // Pass 2: Asteroid entities (surface-colored pipeline)
+  m_surfaceRenderer.BeginFrame(_cmdList, m_cbAlloc, m_camera);
+  m_worldState.ForEachActive([&](const ClientEntity& entity)
+  {
+    if (entity.Category != SpaceObjectCategory::Asteroid)
+      return;
+
+    ++totalCount;
+    std::string meshKey = entity.MeshKey;
+    if (meshKey.empty()) { ++noKeyCount; return; }
+
+    XMFLOAT3 renderPos = entity.Position;
+    const XMFLOAT3* predicted = m_prediction.GetPredictedPosition(entity.Handle);
+    if (predicted) renderPos = *predicted;
+
+    XMVECTOR entPos = XMLoadFloat3(&renderPos);
+    float dist = XMVectorGetX(XMVector3Length(XMVectorSubtract(entPos, camPos)));
+    if (dist < nearestDist) nearestDist = dist;
+
+    XMVECTOR orientation = XMLoadFloat4(&entity.Orientation);
+    XMMATRIX rotMatrix = XMMatrixRotationQuaternion(orientation);
+    XMMATRIX world = rotMatrix *
+      XMMatrixTranslation(renderPos.x, renderPos.y, renderPos.z);
+    world.r[3] = XMVectorSubtract(world.r[3], XMVectorSetW(camPos, 0));
+
+    SurfaceMesh* surfMesh = m_surfaceRenderer.GetSurfaceMesh(meshKey, entity.SurfaceType);
+    if (!surfMesh) { ++noMeshCount; return; }
+
+    m_surfaceRenderer.RenderObject(_cmdList, m_cbAlloc, surfMesh, world);
     ++renderedCount;
   });
 

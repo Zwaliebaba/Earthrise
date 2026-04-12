@@ -15,6 +15,7 @@ void ClientWorldState::ApplySpawn(const EntitySpawnMsg& _msg)
   entity.Orientation      = _msg.Orientation;
   entity.Color            = _msg.Color;
   entity.Velocity         = {};
+  entity.SurfaceType      = _msg.Surface;
 
   // Initialize interpolation state to current position (no lerp jitter on first frame)
   entity.PrevPosition      = _msg.Position;

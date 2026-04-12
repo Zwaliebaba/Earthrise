@@ -2,6 +2,7 @@
 
 #include "EntityHandle.h"
 #include "SpaceObjectCategory.h"
+#include "SurfaceType.h"
 
 namespace Neuron
 {
@@ -25,6 +26,7 @@ namespace Neuron
     // Appearance
     XMFLOAT4             Color         = { 1.0f, 1.0f, 1.0f, 1.0f }; // Runtime-assigned
     uint32_t             MeshNameHash  = 0;  // Hash of mesh filename for MeshCache lookup
+    SurfaceType          Surface       = SurfaceType::Default; // Landscape coloring style
 
     // Definition index — references the ObjectDef that spawned this entity
     uint16_t             DefIndex      = 0;

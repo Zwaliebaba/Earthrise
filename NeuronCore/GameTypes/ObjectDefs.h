@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SpaceObjectCategory.h"
+#include "SurfaceType.h"
 
 namespace Neuron
 {
@@ -24,10 +25,11 @@ namespace Neuron
   // Asteroid definition
   struct AsteroidDef : ObjectDefBase
   {
-    float    MinRotationSpeed = 0.0f;
-    float    MaxRotationSpeed = 0.5f;
-    uint32_t ResourceType     = 0;
-    float    MaxResource      = 0.0f;
+    float       MinRotationSpeed = 0.0f;
+    float       MaxRotationSpeed = 0.5f;
+    uint32_t    ResourceType     = 0;
+    float       MaxResource      = 0.0f;
+    SurfaceType Surface          = SurfaceType::Default;
   };
 
   // Crate definition

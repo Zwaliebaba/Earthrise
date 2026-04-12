@@ -83,6 +83,7 @@ namespace Neuron
 #include "DataWriter.h"
 #include "EntityHandle.h"
 #include "SpaceObjectCategory.h"
+#include "SurfaceType.h"
 #include "Messages.h"
 #include "ReliableChannel.h"
 #include "UdpSocket.h"

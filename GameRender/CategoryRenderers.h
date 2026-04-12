@@ -2,6 +2,7 @@
 
 #include "SpaceObjectRenderer.h"
 #include "MeshCache.h"
+#include "SurfaceRenderer.h"
 
 namespace Neuron::Graphics
 {
@@ -31,7 +32,28 @@ namespace Neuron::Graphics
     MeshCache* m_meshCache = nullptr;
   };
 
-  class AsteroidRenderer final : public CategoryRenderer {};
+  class AsteroidRenderer final : public CategoryRenderer
+  {
+  public:
+    void SetSurfaceRenderer(SurfaceRenderer* surfaceRenderer) noexcept
+    {
+      m_surfaceRenderer = surfaceRenderer;
+    }
+
+    // Render an asteroid with landscape-colored surface.
+    void XM_CALLCONV RenderSurfaceObject(ID3D12GraphicsCommandList* cmdList,
+      ConstantBufferAllocator& cbAlloc,
+      std::string_view meshKey, Neuron::SurfaceType surfaceType, FXMMATRIX world)
+    {
+      if (!m_surfaceRenderer) return;
+      SurfaceMesh* surfMesh = m_surfaceRenderer->GetSurfaceMesh(meshKey, surfaceType);
+      if (surfMesh)
+        m_surfaceRenderer->RenderObject(cmdList, cbAlloc, surfMesh, world);
+    }
+
+  private:
+    SurfaceRenderer* m_surfaceRenderer = nullptr;
+  };
   class ShipRenderer final : public CategoryRenderer {};
   class StationRenderer final : public CategoryRenderer {};
   class JumpgateRenderer final : public CategoryRenderer {};

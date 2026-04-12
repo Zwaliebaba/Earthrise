@@ -2,6 +2,7 @@
 
 #include "GameTypes/EntityHandle.h"
 #include "GameTypes/SpaceObjectCategory.h"
+#include "GameTypes/SurfaceType.h"
 #include "Messages.h"
 
 // ClientWorldState — maintains a local mirror of server-authoritative entities.
@@ -47,6 +48,9 @@ struct ClientEntity
 
   // Mesh key string for MeshCache lookup (resolved from MeshHash + Category)
   std::string MeshKey;
+
+  // Surface coloring for asteroids/planets (landscape texture type)
+  Neuron::SurfaceType SurfaceType = Neuron::SurfaceType::Default;
 };
 
 class ClientWorldState

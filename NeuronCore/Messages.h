@@ -110,6 +110,7 @@ namespace Neuron
     XMFLOAT3            Position  = {};
     XMFLOAT4            Orientation = { 0, 0, 0, 1 };
     XMFLOAT4            Color     = { 1, 1, 1, 1 };
+    SurfaceType         Surface   = SurfaceType::Default;
 
     void Write(DataWriter& _w) const
     {
@@ -119,6 +120,7 @@ namespace Neuron
       _w.Write<XMFLOAT3>(Position);
       _w.Write<XMFLOAT4>(Orientation);
       _w.Write<XMFLOAT4>(Color);
+      _w.Write<uint8_t>(static_cast<uint8_t>(Surface));
     }
 
     void Read(DataReader& _r)
@@ -129,6 +131,7 @@ namespace Neuron
       Position    = _r.Read<XMFLOAT3>();
       Orientation = _r.Read<XMFLOAT4>();
       Color       = _r.Read<XMFLOAT4>();
+      Surface     = static_cast<SurfaceType>(_r.Read<uint8_t>());
     }
   };
 

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ZoneLoader.h"
 #include "GameTypes/ObjectDefs.h"
+#include "GameTypes/SurfaceType.h"
 
 namespace EarthRise
 {
@@ -70,6 +71,7 @@ namespace EarthRise
       {
         obj->BoundingRadius = 1.2f;
         obj->Color = { 0.6f, 0.5f, 0.2f, 1.0f };
+        obj->Surface = static_cast<Neuron::SurfaceType>(i % static_cast<int>(Neuron::SurfaceType::COUNT));
       }
     }
 

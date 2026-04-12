@@ -58,6 +58,7 @@ class GameApp : public GameMain
 
     // Renderers
     Neuron::Graphics::SpaceObjectRenderer m_objectRenderer;
+    Neuron::Graphics::SurfaceRenderer m_surfaceRenderer;
     Neuron::Graphics::Starfield m_starfield;
     Neuron::Graphics::PostProcess m_postProcess;
     Neuron::Graphics::TacticalGrid m_tacticalGrid;
