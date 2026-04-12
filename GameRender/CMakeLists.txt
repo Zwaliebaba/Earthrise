@@ -15,6 +15,8 @@ add_library(GameRender STATIC
     Starfield.cpp
     TacticalGrid.cpp
     UploadHeap.cpp
+    ParticleSystem.cpp
+    ParticleRenderer.cpp
 )
 
 target_include_directories(GameRender PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

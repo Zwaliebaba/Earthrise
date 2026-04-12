@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "GameApp.h"
 #include "Interpolation.h"
+#include "GameEvents.h"
 
 GameApp* g_app = nullptr;
 
@@ -111,6 +112,12 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
   m_fleetPanel.Initialize(&m_worldState);
   m_jumpgateUI.Initialize(&m_worldState, &m_camera);
 
+  // Audio & Effects (Phase 9)
+  m_spatialAudio.Initialize(nullptr); // No audio hardware yet; silent mode
+  m_spatialAudio.PreloadFromBank(m_soundBank);
+  m_particleRenderer.Initialize();
+  m_audioEventHandler.Initialize(&m_spatialAudio, &m_particleSystem);
+
   // Connect to the local server.
   m_serverConnection.Connect("127.0.0.1", 7777, "Player1");
 
@@ -182,6 +189,13 @@ void GameApp::Update(float _deltaT)
   // Update chat message ages
   m_chatUI.Update(_deltaT);
 
+  // Update particles (Phase 9)
+  m_particleSystem.Update(_deltaT);
+
+  // Update spatial audio listener from camera (Phase 9)
+  m_spatialAudio.UpdateListener(m_camera.GetPosition(),
+    m_camera.GetForward(), m_camera.GetUp(), _deltaT);
+
   // Camera update
   m_camera.Update(_deltaT);
 }
@@ -219,6 +233,17 @@ void GameApp::ProcessServerMessages()
     {
       EntityDespawnMsg despawn;
       despawn.Read(reader);
+
+      // Publish explosion event before removing the entity (Phase 9).
+      if (const auto* ent = m_worldState.GetEntity(despawn.Handle))
+      {
+        Neuron::ExplosionEvent evt;
+        evt.Entity   = despawn.Handle;
+        evt.Position = ent->Position;
+        evt.Radius   = 2.0f;
+        EventManager::Publish(evt);
+      }
+
       m_worldState.ApplyDespawn(despawn);
       m_prediction.Remove(despawn.Handle);
       break;
@@ -304,6 +329,9 @@ void GameApp::RenderScene()
 
   // Render world entities
   RenderWorldEntities(cmdList);
+
+  // Render particles (Phase 9)
+  m_particleRenderer.Render(cmdList, m_cbAlloc, m_camera, m_particleSystem);
 
   // Tactical grid
   m_tacticalGrid.Render(cmdList, m_cbAlloc, m_camera);

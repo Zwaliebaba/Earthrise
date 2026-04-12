@@ -13,6 +13,9 @@ add_executable(Earthrise WIN32
     ChatUI.cpp
     FleetPanel.cpp
     JumpgateUI.cpp
+    SoundBank.cpp
+    SpatialAudioSystem.cpp
+    AudioEventHandler.cpp
     WinMain.cpp
     pch.cpp
     Earthrise.rc        # embeds app.manifest

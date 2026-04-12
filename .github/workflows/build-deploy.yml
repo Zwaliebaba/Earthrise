@@ -1,0 +1,57 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: '544a4c5c297e60e4ac4a5a1810df66748d908869'
+
+      - name: Configure CMake
+        run: cmake --preset x64-release
+
+      - name: Build
+        run: cmake --build out/build/x64-release
+
+      - name: Run Tests
+        run: ctest --test-dir out/build/x64-release --output-on-failure --timeout 120
+
+      - name: Upload Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarthRiseServer
+          path: x64/Release/EarthRiseServer.exe
+          retention-days: 7
+
+  docker:
+    needs: build
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Server Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: EarthRiseServer
+          path: x64/Release/
+
+      - name: Build Docker Image
+        run: docker build -f Dockerfile.server -t earthrise-server:latest .

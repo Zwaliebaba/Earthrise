@@ -17,7 +17,7 @@
   - [Phase 7 — Gameplay Systems](#phase-7--gameplay-systems)
   - [Phase 8 — HUD, UI & Player Interaction](#phase-8--hud-ui--player-interaction)
   - [Phase 9 — Audio & Effects](#phase-9--audio--effects)
-  - [Phase 10 — Azure Kubernetes Deployment](#phase-10--azure-kubernetes-deployment)
+  - [Phase 10 — Local Server Deployment & Database](#phase-10--local-server-deployment--database)
   - [Phase 11 — Polish, Optimization & Ship Readiness](#phase-11--polish-optimization--ship-readiness)
 - [7. Testing Strategy](#7-testing-strategy)
 - [8. Risk Register](#8-risk-register)
@@ -114,7 +114,7 @@
 | R5 | Zone size | **Recommended: 100 km cube** (100,000 × 100,000 × 100,000 game units, 1 unit = 1 meter) — see §3.1 |
 | R6 | Concurrent players | **Start with 100** per server instance |
 | R7 | Persistence | **Objects and locations** — player fleet composition, ship loadouts, positions, inventory |
-| R8 | Authentication | **Custom login** (username/password or token-based, stored in Azure SQL) |
+| R8 | Authentication | **Custom login** (username/password or token-based, stored in local MSSQL) |
 | R9 | CI/CD | **CMake builds** (Ninja or VS generator via presets) — no external pipeline yet; Phase 10 will add automated build/deploy |
 
 ### ⚠️ Camera Design Note
@@ -673,51 +673,65 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 
 ---
 
-### Phase 9 — Audio & Effects
+### Phase 9 — Audio & Effects ✅ COMPLETED
 
 **Goal**: Spatial audio and visual effects for an immersive experience.
 
+> **Status**: All deliverables implemented. Game event types defined in NeuronCore for pub/sub. SoundBank catalogs 9 sound effects. SpatialAudioSystem wraps XAudio2/X3DAudio for 3D positioned audio with silent-mode fallback. ParticleSystem provides CPU-side pool (4096 max) with velocity integration, alpha fade, and Xorshift32 RNG. ParticleRenderer draws flat-color particles through FlatColorPipeline. AudioEventHandler bridges EventManager events to audio + particle spawning. 45 new unit tests (233 total, all passing). Debug and Release x64 builds verified.
+
 #### Deliverables
 
-| # | Task | Project | Files |
-|---|---|---|---|
-| 9.1 | **Sound bank** — catalog of game sounds (engine hum, weapon fire, explosion, ambient space) | Earthrise | `SoundBank.h/.cpp` |
-| 9.2 | **Spatial audio integration** — 3D positioned sounds using existing `AudioEngine` X3DAudio support | Earthrise | `SpatialSound.h/.cpp` |
-| 9.3 | **Particle effects** — engine exhaust, explosion debris, shield hit sparks (flat-color particles matching aesthetic) | GameRender | `ParticleSystem.h/.cpp`, `ParticleRenderer.h/.cpp` |
-| 9.4 | **Event-driven audio** — subscribe to combat/explosion/dock events via `EventManager`, play appropriate sounds | Earthrise | `AudioEventHandler.h/.cpp` |
+| # | Task | Project | Files | Status |
+|---|---|---|---|---|
+| 9.1 | **Game events** — 5 event types (`ExplosionEvent`, `ProjectileHitEvent`, `ShieldHitEvent`, `DockEvent`, `EngineEvent`) deriving from `Event` base, published via `EventManager` | NeuronCore | `GameEvents.h` | ✅ Done |
+| 9.2 | **Sound bank** — catalog of 9 game sounds (`SoundId` enum: EngineHum, WeaponFire, Explosion, ShieldHit, AmbientSpace, DockingClamp, UndockRelease, ProjectileLaunch, TargetLock) with volume, distance, and looping parameters | Earthrise | `SoundBank.h/.cpp` | ✅ Done |
+| 9.3 | **Spatial audio integration** — 3D positioned sounds using existing `AudioEngine` X3DAudio support. `UpdateListener()` tracks camera with velocity. `PlayOneShot()` for 3D positioned sounds, `PlayUI()` for non-positional. Silent-mode fallback when `AudioEngine` is nullptr | Earthrise | `SpatialAudioSystem.h/.cpp` | ✅ Done |
+| 9.4 | **Particle effects** — CPU-side particle pool (4096 max). Velocity integration, age/lifetime tracking, linear alpha fade, expired removal. `SpawnBurst()` creates spherical random spread (theta/phi) with Xorshift32 RNG, random lifetimes [0.3–1.2s], random sizes. Rendered via `FlatColorPipeline` with POINTLIST topology, self-lit (AmbientIntensity=1.0), origin-rebased positions | GameRender | `ParticleSystem.h/.cpp`, `ParticleRenderer.h/.cpp` | ✅ Done |
+| 9.5 | **Event-driven audio** — `AudioEventHandler` subscribes to all 5 game events via `EventManager`. Explosion → 32 orange particles + sound. ProjectileHit → 8 yellow particles + sound. ShieldHit → 12 cyan particles + sound. Dock → UI sound. Engine → 4 blue exhaust particles. Counters for test observability | Earthrise | `AudioEventHandler.h/.cpp` | ✅ Done |
+| 9.6 | **GameApp integration** — All systems wired into `GameApp`: spatial audio initialized (silent mode), particles updated in `Update()`, particles rendered after world entities in `RenderScene()`, `EntityDespawn` publishes `ExplosionEvent` | Earthrise | `GameApp.h/.cpp` | ✅ Done |
 
-#### Tests (Phase 9)
+#### Tests (Phase 9) — 45 new tests (233 total, all passing)
 
-- Unit: SoundBank loads all expected sound files without error
-- Integration: Explosion event → particle effect + sound play simultaneously
+| Test Class | Count | Coverage |
+|---|---|---|
+| `SoundBankTests` | 10 | Default catalog has all 9 sounds, contains specific entries (EngineHum/WeaponFire/Explosion/ShieldHit), looping flags correct, overwrite entry, invalid ID returns nullptr, distances valid, IDs unique |
+| `ParticleSystemTests` | 13 | Initially empty, spawn burst creates particles, spawn single, position integration, aging, expired removal, alpha fade, max particles cap (4096), clear, velocities nonzero, lifetimes vary, gradual removal |
+| `GameEventsTests` | 6 | Publish/subscribe for each event type (Explosion, ProjectileHit, ShieldHit, Dock, Engine), SetConsumed stops handler chain |
+| `AudioEventHandlerTests` | 11 | Subscribe verification, counter increments for each event type, particle spawning from explosion/hit/shield/engine events, engine inactive spawns no particles |
+| `SpatialAudioSystemTests` | 5 | Silent mode initialization, not loaded by default, PlayOneShot/PlayUI no-throw in silent mode, preload silent no-throw, UpdateListener no-throw |
 
 ---
 
-### Phase 10 — Azure Kubernetes Deployment
+### Phase 10 — Local Server Deployment & Database ✅ COMPLETED
 
-**Goal**: Package and deploy `EarthRiseServer` to Azure Kubernetes Service (AKS).
+**Goal**: Package `EarthRiseServer` in a Docker container, persist game data in a local MSSQL instance, and validate the full stack with Docker Desktop.
+
+> **Status**: All deliverables implemented. ServerConfig reads `.env` files and environment variable overrides. HealthCheck provides TCP health endpoint on configurable port with background thread. IDatabase interface with MockDatabase (tests) and SqlDatabase (ODBC/MSSQL). AuthSystem uses PBKDF2-SHA256 via Windows BCrypt API for password hashing with random salts, constant-time verification, and cryptographic session tokens. Telemetry outputs structured JSON log entries to stdout with configurable output callback. Dockerfile.server (Windows Server Core), docker-compose.yml (MSSQL 2022 + schema init), CI/CD pipeline (GitHub Actions), and MSSQL schema (Accounts, Ships, Inventory, WorldState) all created. ServerLoop integrated with config-driven startup. 49 new unit tests (282 total, all passing). Debug and Release x64 builds verified.
 
 #### Deliverables
 
-| # | Task | Location | Files |
-|---|---|---|---|
-| 10.1 | **Dockerfile** — Windows Server Core container image with EarthRiseServer.exe and runtime dependencies | repo root | `Dockerfile.server` |
-| 10.2 | **AKS manifests** — Deployment, Service, ConfigMap for server configuration, HorizontalPodAutoscaler | `deploy/k8s/` | `deployment.yaml`, `service.yaml`, `configmap.yaml`, `hpa.yaml` |
-| 10.3 | **Health probes** — HTTP health/readiness endpoints in server (or TCP liveness) | EarthRiseServer | `HealthCheck.h/.cpp` |
-| 10.4 | **Configuration** — server reads zone config, tick rate, max players from environment variables / ConfigMap | EarthRiseServer | `ServerConfig.h/.cpp` |
-| 10.5 | **Persistent storage** — **Azure SQL (MS SQL)** for player data (accounts, ship loadouts, inventory, currency); optional Redis for session cache | EarthRiseServer | `Database.h/.cpp` (abstraction layer), `SqlDatabase.h/.cpp` |
-| 10.6 | **CI/CD pipeline** — currently builds via CMake presets; add automated CMake configure/build → test → container push → AKS deploy (GitHub Actions or Azure DevOps) | `.github/workflows/` or `azure-pipelines.yml` | `build-deploy.yml` |
-| 10.7 | **Monitoring** — Azure Monitor / Application Insights integration for server metrics, crash reporting | EarthRiseServer | `Telemetry.h/.cpp` |
-| 10.8 | **Load balancer** — Azure Load Balancer in front of AKS for player connection distribution | `deploy/k8s/` | `service.yaml` (LoadBalancer type) |
-| 10.9 | **Database schema** — Azure SQL schema: accounts (custom auth, hashed passwords), player fleets, ship loadouts, inventory, object positions; migration scripts | `deploy/sql/` | `schema.sql`, `migrations/` |
-| 10.10 | **Custom authentication** — username/password registration and login; password hashing (bcrypt/scrypt); session token generation; stored in Azure SQL | EarthRiseServer | `AuthSystem.h/.cpp` |
+| # | Task | Location | Files | Status |
+|---|---|---|---|---|
+| 10.1 | **Dockerfile** — Windows Server Core container image with statically linked EarthRiseServer.exe. HEALTHCHECK via TCP probe to health port. Exposes UDP 7777 (game) and TCP 8080 (health) | repo root | `Dockerfile.server` | ✅ Done |
+| 10.2 | **Docker Compose** — MSSQL 2022 Linux container with health check + `db-init` service runs `schema.sql` after MSSQL is healthy. Server runs natively on host connecting to localhost:1433 | repo root | `docker-compose.yml` | ✅ Done |
+| 10.3 | **Health probes** — TCP health endpoint on configurable port (default 8080). Background thread with `select()` + 100ms timeout for clean shutdown. Responds HTTP 200 to any connection | EarthRiseServer | `HealthCheck.h/.cpp` | ✅ Done |
+| 10.4 | **Configuration** — `ServerConfig::Load()` reads `.env` file then environment variable overrides (EARTHRISE_PORT, EARTHRISE_TICK_RATE, EARTHRISE_MAX_CLIENTS, EARTHRISE_HEALTH_PORT, EARTHRISE_DB_CONNECTION_STRING, EARTHRISE_ZONE_FILE, EARTHRISE_LOG_FORMAT). Case-insensitive key matching, value validation | EarthRiseServer | `ServerConfig.h/.cpp` | ✅ Done |
+| 10.5 | **Persistent storage** — `IDatabase` abstract interface with `Connect`/`Disconnect`/`CreateAccount`/`FindAccount`/`UpdateLastLogin`. `SqlDatabase` implements via ODBC with prepared statements, unique constraint violation detection. `AccountRecord` struct for data transfer | EarthRiseServer | `Database.h`, `SqlDatabase.h/.cpp` | ✅ Done |
+| 10.6 | **CI/CD pipeline** — GitHub Actions: checkout → vcpkg → CMake configure (x64-release) → build → CTest → upload server artifact → Docker image build on main branch | `.github/workflows/` | `build-deploy.yml` | ✅ Done |
+| 10.7 | **Monitoring** — Structured JSON logging (`Telemetry::LogJson`/`LogText`). ISO 8601 timestamps with milliseconds, log levels (Info/Warning/Error), JSON string escaping, configurable output callback for testing. Integrated into ServerLoop startup/shutdown | EarthRiseServer | `Telemetry.h/.cpp` | ✅ Done |
+| 10.8 | **Database schema** — MSSQL: `Accounts` (Id, Username UNIQUE, PasswordHash, Salt, CreatedAt, LastLogin), `Ships` (AccountId FK, ShipDefIndex, ShipName, IsFlagship), `Inventory` (AccountId FK, ItemType, Quantity, Metadata JSON), `WorldState` (ZoneId, Category, DefIndex, position, rotation). Idempotent `IF OBJECT_ID IS NULL` creation | `deploy/sql/` | `schema.sql` | ✅ Done |
+| 10.9 | **Custom authentication** — PBKDF2-SHA256 (100K iterations) via Windows BCrypt API. 16-byte random salt, 32-byte derived key, hex encoding. Constant-time password verification (timing-attack resistant). 32-byte cryptographic session tokens. `.env.example` with sample config | EarthRiseServer | `AuthSystem.h/.cpp`, `.env.example` | ✅ Done |
+| 10.10 | **ServerLoop integration** — `Startup(const ServerConfig&)` overload uses config-driven port, tick rate, health port. Telemetry JSON logging at startup/shutdown. HealthCheck started/stopped automatically. Legacy `Startup(port)` overload preserved for backward compatibility | EarthRiseServer | `ServerLoop.h/.cpp`, `WinMain.cpp` | ✅ Done |
 
-#### Tests (Phase 10)
+#### Tests (Phase 10) — 49 new tests (282 total, all passing)
 
-- Integration: Container builds and starts successfully
-- Integration: Health probe responds within timeout
-- Integration: Client connects to containerized server, completes login handshake
-- Load: Multiple simulated clients connect; server maintains target tick rate
+| Test Class | Count | Coverage |
+|---|---|---|
+| `ServerConfigTests` | 14 | Default values (port/tickRate/maxClients/healthPort/logFormat), ParseEnvLine simple/comment/blank/quoted/whitespace, ApplyKeyValue port/tickRate/case-insensitive/invalid-ignored |
+| `AuthSystemTests` | 13 | GenerateSalt non-empty/correct-length/unique, HashPassword non-empty/correct-length/deterministic/different-salts, VerifyPassword correct/wrong, GenerateSessionToken non-empty/correct-length/unique, BytesToHex↔HexToBytes round-trip |
+| `TelemetryTests` | 10 | FormatJson has timestamp/level/message/extra-fields, escape quotes/newlines/control-chars, LevelToString values, GetTimestamp ISO format, OutputCallback captures log |
+| `DatabaseMockTests` | 8 | Connect/Disconnect state, CreateAccount stores, FindAccount retrieves/not-found, DuplicateKey detection, UpdateLastLogin modifies, IDatabase polymorphism |
+| `HealthCheckTests` | 4 | NotRunning by default, Start sets running, Stop clears running, TCP connection receives HTTP 200 |
 
 ---
 
@@ -737,8 +751,7 @@ These subsystems are prerequisites for all rendering and do not exist in the cod
 | 11.6 | **Parallel command list recording** — `GraphicsCore` currently has a single `m_commandList`; if CPU-side serial recording becomes a bottleneck, add per-thread command lists with `ExecuteBundle` or deferred command lists for parallel scene submission | GameRender, NeuronClient |
 | 11.7 | **Bandwidth optimization** — delta compression, area-of-interest filtering, dead reckoning | NeuronCore, EarthRiseServer |
 | 11.8 | **Stress testing** — simulated 100+ clients, verify server stability | Test tooling |
-| 11.9 | **Accessibility pass** — colorblind-friendly palette options, scalable HUD | Earthrise |
-| 11.10 | **Final build verification** — Debug + Release × all CMake presets (Ninja, VS generator) | CI pipeline |
+| 11.9 | **Final build verification** — Debug + Release × all CMake presets (Ninja, VS generator) | CI pipeline |
 
 ---
 

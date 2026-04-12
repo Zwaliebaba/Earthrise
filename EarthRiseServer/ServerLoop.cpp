@@ -8,29 +8,56 @@ namespace EarthRise
   {
   }
 
-  bool ServerLoop::Startup(uint16_t _port)
+  bool ServerLoop::Startup(const ServerConfig& config)
   {
-    Neuron::Server::ServerLog("ServerLoop: Starting on port {}\n", _port);
+    m_config = config;
+    m_tickRate  = config.TickRate;
+    m_tickDelta = 1.0f / m_tickRate;
 
-    if (!m_sessions.Startup(_port))
+    Telemetry::LogJson(LogLevel::Info, "ServerLoop starting", {
+      {"port",       std::to_string(config.Port)},
+      {"tickRate",   std::to_string(static_cast<int>(config.TickRate))},
+      {"maxClients", std::to_string(config.MaxClients)},
+      {"healthPort", std::to_string(config.HealthPort)},
+    });
+
+    if (!m_sessions.Startup(config.Port))
     {
-      Neuron::Server::ServerLog("ServerLoop: Failed to start session manager\n");
+      Telemetry::LogJson(LogLevel::Error, "Failed to start session manager");
       return false;
+    }
+
+    // Start health-check endpoint.
+    if (!m_healthCheck.Start(config.HealthPort))
+    {
+      Neuron::Server::ServerLog("ServerLoop: Health check failed to start on port {}\n",
+        config.HealthPort);
     }
 
     // Create a test zone with default entities.
     ZoneLoader::CreateTestZone(m_zone);
 
-    Neuron::Server::ServerLog("ServerLoop: Startup complete. Tick rate: {} Hz, {} entities\n",
-      static_cast<int>(TICK_RATE), m_zone.GetEntityManager().ActiveCount());
+    Telemetry::LogJson(LogLevel::Info, "Startup complete", {
+      {"entities", std::to_string(m_zone.GetEntityManager().ActiveCount())},
+    });
+
     Neuron::Server::ServerLog("ServerLoop: Waiting for clients...\n");
     return true;
+  }
+
+  bool ServerLoop::Startup(uint16_t _port)
+  {
+    ServerConfig config;
+    config.Port = _port;
+    return Startup(config);
   }
 
   void ServerLoop::Shutdown()
   {
     m_running = false;
+    m_healthCheck.Stop();
     m_sessions.Shutdown();
+    Telemetry::LogJson(LogLevel::Info, "Shutdown complete");
     Neuron::Server::ServerLog("ServerLoop: Shutdown complete\n");
   }
 
@@ -61,10 +88,10 @@ namespace EarthRise
       m_sessions.PruneTimedOut(currentTime);
 
       // Fixed-timestep simulation ticks
-      while (accumulator >= TICK_DELTA)
+      while (accumulator >= m_tickDelta)
       {
-        m_zone.Tick(TICK_DELTA);
-        accumulator -= TICK_DELTA;
+        m_zone.Tick(m_tickDelta);
+        accumulator -= m_tickDelta;
       }
 
       // Broadcast state to clients
@@ -73,7 +100,7 @@ namespace EarthRise
 
       // Yield to avoid burning CPU when idle.
       double elapsed = static_cast<double>(Neuron::Timer::Core::GetElapsedSeconds());
-      double sleepMs = (TICK_DELTA - elapsed) * 1000.0;
+      double sleepMs = (m_tickDelta - elapsed) * 1000.0;
       if (sleepMs > 1.0)
       {
         ::Sleep(static_cast<DWORD>(sleepMs));

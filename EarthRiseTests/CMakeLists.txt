@@ -14,6 +14,8 @@ add_library(EarthRiseTests SHARED
     ClientSyncTests.cpp
     GameplayTests.cpp
     UITests.cpp
+    AudioEffectsTests.cpp
+    ServerInfraTests.cpp
     # GameLogic sources needed by tests, compiled with dynamic CRT
     ${CMAKE_SOURCE_DIR}/GameLogic/EntityPool.cpp
     ${CMAKE_SOURCE_DIR}/GameLogic/SpaceObjectManager.cpp
@@ -30,8 +32,9 @@ add_library(EarthRiseTests SHARED
     ${CMAKE_SOURCE_DIR}/GameLogic/FleetSystem.cpp
     # GameRender sources needed by tests (CPU-only code, no GPU)
     ${CMAKE_SOURCE_DIR}/GameRender/CmoLoader.cpp
-    # NeuronCore networking sources needed by tests
+    # NeuronCore sources needed by tests
     ${CMAKE_SOURCE_DIR}/NeuronCore/ReliableChannel.cpp
+    ${CMAKE_SOURCE_DIR}/NeuronCore/EventManager.cpp
     # Earthrise client sources needed by UI tests
     ${CMAKE_SOURCE_DIR}/Earthrise/ClientWorldState.cpp
     ${CMAKE_SOURCE_DIR}/Earthrise/HUD.cpp
@@ -39,6 +42,16 @@ add_library(EarthRiseTests SHARED
     ${CMAKE_SOURCE_DIR}/Earthrise/ChatUI.cpp
     ${CMAKE_SOURCE_DIR}/Earthrise/FleetPanel.cpp
     ${CMAKE_SOURCE_DIR}/Earthrise/JumpgateUI.cpp
+    ${CMAKE_SOURCE_DIR}/Earthrise/SoundBank.cpp
+    ${CMAKE_SOURCE_DIR}/Earthrise/SpatialAudioSystem.cpp
+    ${CMAKE_SOURCE_DIR}/Earthrise/AudioEventHandler.cpp
+    # GameRender particle system (CPU-only code)
+    ${CMAKE_SOURCE_DIR}/GameRender/ParticleSystem.cpp
+    # EarthRiseServer sources needed by infrastructure tests
+    ${CMAKE_SOURCE_DIR}/EarthRiseServer/ServerConfig.cpp
+    ${CMAKE_SOURCE_DIR}/EarthRiseServer/AuthSystem.cpp
+    ${CMAKE_SOURCE_DIR}/EarthRiseServer/Telemetry.cpp
+    ${CMAKE_SOURCE_DIR}/EarthRiseServer/HealthCheck.cpp
     # Stubs for GPU-dependent classes (SpriteBatch, Camera) to satisfy linker
     TestStubs.cpp
     # NeuronServer sources needed by tests
@@ -57,6 +70,7 @@ target_include_directories(EarthRiseTests PRIVATE
     ${CMAKE_SOURCE_DIR}/NeuronCore/GameMath
     ${CMAKE_SOURCE_DIR}/NeuronCore/GameTypes
     ${CMAKE_SOURCE_DIR}/NeuronServer
+    ${CMAKE_SOURCE_DIR}/EarthRiseServer
 )
 
 # Per-module build output → <module>/<Config>/<Platform>/

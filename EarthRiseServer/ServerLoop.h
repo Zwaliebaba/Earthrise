@@ -5,6 +5,9 @@
 #include "StateBroadcaster.h"
 #include "SessionManager.h"
 #include "BandwidthManager.h"
+#include "ServerConfig.h"
+#include "HealthCheck.h"
+#include "Telemetry.h"
 
 namespace EarthRise
 {
@@ -20,7 +23,10 @@ namespace EarthRise
 
     ServerLoop();
 
-    // Initialize: start server socket, create test zone.
+    // Initialize from a ServerConfig: start socket, health check, test zone.
+    bool Startup(const ServerConfig& config);
+
+    // Legacy overload — uses default config with specified port.
     bool Startup(uint16_t _port = DEFAULT_PORT);
 
     // Shut down the server.
@@ -40,7 +46,11 @@ namespace EarthRise
     Neuron::Server::SessionManager    m_sessions;
     Neuron::Server::BandwidthManager  m_bandwidth;
     StateBroadcaster                  m_broadcaster;
+    HealthCheck                       m_healthCheck;
+    ServerConfig                      m_config;
 
-    bool m_running = false;
+    float m_tickRate  = TICK_RATE;
+    float m_tickDelta = TICK_DELTA;
+    bool  m_running   = false;
   };
 }

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ServerLoop.h"
+#include "ServerConfig.h"
 
 int main()
 {
@@ -7,8 +8,10 @@ int main()
 
     Neuron::InitializeNetworking();
 
+    auto config = EarthRise::ServerConfig::Load();
+
     EarthRise::ServerLoop server;
-    if (!server.Startup())
+    if (!server.Startup(config))
     {
         Neuron::Server::ServerLog("EarthRiseServer: Startup failed\n");
         Neuron::ShutdownNetworking();

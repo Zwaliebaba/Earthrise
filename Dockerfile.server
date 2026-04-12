@@ -1,0 +1,39 @@
+# EarthRise Server — Windows Server Core container
+# Build the server first: cmake --build out/build/x64-release
+# Then: docker build -f Dockerfile.server -t earthrise-server .
+#
+# Requires Docker Desktop in Windows container mode.
+
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+WORKDIR C:\\EarthRise
+
+# Copy the statically-linked server executable (no VC++ Redistributable needed
+# because the project uses /MT static CRT linkage).
+COPY x64/Release/EarthRiseServer.exe .
+
+# Copy game data (zone definitions, object definitions).
+COPY GameData/ GameData/
+
+# Copy database migration scripts.
+COPY deploy/sql/ deploy/sql/
+
+# Game server port (UDP).
+EXPOSE 7777/udp
+
+# Health-check port (TCP).
+EXPOSE 8080
+
+# Container health check via the built-in TCP health endpoint.
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=5s \
+    CMD powershell -Command \
+        "try { $c = New-Object Net.Sockets.TcpClient('localhost',8080); $c.Close(); exit 0 } catch { exit 1 }"
+
+# Default configuration via environment variables.
+ENV EARTHRISE_PORT=7777
+ENV EARTHRISE_HEALTH_PORT=8080
+ENV EARTHRISE_MAX_CLIENTS=100
+ENV EARTHRISE_TICK_RATE=20
+ENV EARTHRISE_LOG_FORMAT=json
+
+ENTRYPOINT ["EarthRiseServer.exe"]

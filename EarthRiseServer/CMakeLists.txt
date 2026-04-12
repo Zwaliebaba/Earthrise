@@ -6,6 +6,11 @@ add_executable(EarthRiseServer
     StateBroadcaster.cpp
     Zone.cpp
     ZoneLoader.cpp
+    ServerConfig.cpp
+    HealthCheck.cpp
+    SqlDatabase.cpp
+    AuthSystem.cpp
+    Telemetry.cpp
 )
 
 target_include_directories(EarthRiseServer PRIVATE

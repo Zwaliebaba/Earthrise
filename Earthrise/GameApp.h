@@ -13,6 +13,11 @@
 #include "ChatUI.h"
 #include "FleetPanel.h"
 #include "JumpgateUI.h"
+#include "SoundBank.h"
+#include "SpatialAudioSystem.h"
+#include "AudioEventHandler.h"
+#include "ParticleSystem.h"
+#include "ParticleRenderer.h"
 #include "ServerConnection.h"
 
 class GameApp : public GameMain
@@ -77,6 +82,13 @@ class GameApp : public GameMain
     ChatUI m_chatUI;
     FleetPanel m_fleetPanel;
     JumpgateUI m_jumpgateUI;
+
+    // Audio & Effects (Phase 9)
+    SoundBank m_soundBank;
+    SpatialAudioSystem m_spatialAudio;
+    AudioEventHandler m_audioEventHandler;
+    Neuron::Graphics::ParticleSystem m_particleSystem;
+    Neuron::Graphics::ParticleRenderer m_particleRenderer;
 
     bool m_initialized = false;
     bool m_connected = false;
