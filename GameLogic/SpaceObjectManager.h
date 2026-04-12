@@ -10,6 +10,8 @@
 #include "GameTypes/ProjectileData.h"
 #include "GameTypes/StationData.h"
 #include "GameTypes/TurretData.h"
+#include "GameTypes/PlanetData.h"
+#include "GameTypes/SunData.h"
 
 namespace GameLogic
 {
@@ -49,6 +51,8 @@ namespace GameLogic
     [[nodiscard]] Neuron::ProjectileData*  GetProjectileData(Neuron::EntityHandle _handle) noexcept;
     [[nodiscard]] Neuron::StationData*     GetStationData(Neuron::EntityHandle _handle) noexcept;
     [[nodiscard]] Neuron::TurretData*      GetTurretData(Neuron::EntityHandle _handle) noexcept;
+    [[nodiscard]] Neuron::PlanetData*     GetPlanetData(Neuron::EntityHandle _handle) noexcept;
+    [[nodiscard]] Neuron::SunData*        GetSunData(Neuron::EntityHandle _handle) noexcept;
 
     // Active entity count.
     [[nodiscard]] uint32_t ActiveCount() const noexcept { return m_pool.ActiveCount(); }
@@ -96,5 +100,7 @@ namespace GameLogic
     std::vector<Neuron::ProjectileData>  m_projectileData;
     std::vector<Neuron::StationData>     m_stationData;
     std::vector<Neuron::TurretData>      m_turretData;
+    std::vector<Neuron::PlanetData>      m_planetData;
+    std::vector<Neuron::SunData>         m_sunData;
   };
 }

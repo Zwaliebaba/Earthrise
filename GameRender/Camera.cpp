@@ -7,8 +7,8 @@ Camera::Camera() noexcept
 {
   XMStoreFloat4x4(&m_viewMatrix, XMMatrixIdentity());
   XMStoreFloat4x4(&m_projMatrix, XMMatrixIdentity());
-  RebuildViewMatrix();
   RebuildProjectionMatrix();
+  RebuildViewMatrix();
 }
 
 void Camera::SetPerspective(float fovY, float aspectRatio, float nearZ, float farZ) noexcept
@@ -78,10 +78,10 @@ void Camera::Update(float deltaT) noexcept
     break;
   }
 
-  if (m_viewDirty)
-    RebuildViewMatrix();
   if (m_projDirty)
     RebuildProjectionMatrix();
+  if (m_viewDirty)
+    RebuildViewMatrix();
 }
 
 void Camera::Rotate(float yaw, float pitch) noexcept
@@ -132,7 +132,10 @@ void Camera::RebuildViewMatrix() noexcept
   XMStoreFloat4x4(&m_viewMatrix, XMMatrixLookToLH(eye, at, up));
 
   // Update frustum in origin-rebased space
-  BoundingFrustum::CreateFromMatrix(m_frustum, XMLoadFloat4x4(&m_projMatrix));
+  // Use standard (non-reversed) projection for frustum — BoundingFrustum
+  // cannot handle the swapped near/far of a reverse-Z matrix.
+  XMMATRIX standardProj = XMMatrixPerspectiveFovLH(m_fovY, m_aspect, m_nearZ, m_farZ);
+  BoundingFrustum::CreateFromMatrix(m_frustum, standardProj);
   XMMATRIX invView = XMMatrixInverse(nullptr, XMLoadFloat4x4(&m_viewMatrix));
   m_frustum.Transform(m_frustum, invView);
 
@@ -147,11 +150,8 @@ void Camera::RebuildProjectionMatrix() noexcept
   XMStoreFloat4x4(&m_projMatrix,
     XMMatrixPerspectiveFovLH(m_fovY, m_aspect, m_farZ, m_nearZ));
 
-  // Rebuild frustum
-  BoundingFrustum::CreateFromMatrix(m_frustum, XMLoadFloat4x4(&m_projMatrix));
-
   m_projDirty = false;
-  m_viewDirty = true; // Frustum needs view transform applied
+  m_viewDirty = true; // Frustum rebuild happens in RebuildViewMatrix
 }
 
 XMMATRIX Camera::GetViewMatrix() const noexcept

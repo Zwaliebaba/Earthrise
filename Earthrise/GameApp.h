@@ -19,6 +19,7 @@
 #include "ParticleSystem.h"
 #include "ParticleRenderer.h"
 #include "ServerConnection.h"
+#include "SunBillboard.h"
 
 class GameApp : public GameMain
 {
@@ -31,6 +32,7 @@ class GameApp : public GameMain
     void Update(float _deltaT) override;
     void RenderScene() override;
     void RenderCanvas() override;
+    void OnWindowSizeChanged(int width, int height) override;
 
     // Input forwarding from WndProc.
     bool ProcessInput(UINT _message, WPARAM _wParam, LPARAM _lParam);
@@ -61,8 +63,13 @@ class GameApp : public GameMain
     Neuron::Graphics::SurfaceRenderer m_surfaceRenderer;
     Neuron::Graphics::Starfield m_starfield;
     Neuron::Graphics::PostProcess m_postProcess;
+    Neuron::Graphics::SunBillboard m_sunBillboard;
     Neuron::Graphics::TacticalGrid m_tacticalGrid;
     Neuron::Graphics::SpriteBatch m_spriteBatch;
+
+    // Bitmap fonts (language-specific glyph atlases)
+    Neuron::Graphics::BitmapFont m_editorFont;
+    Neuron::Graphics::BitmapFont m_speccyFont;
 
     // Networking
     ServerConnection m_serverConnection;

@@ -5,6 +5,7 @@
 
 #include "pch.h"
 #include "SpriteBatch.h"
+#include "BitmapFont.h"
 #include "Camera.h"
 
 using namespace Neuron::Graphics;
@@ -15,6 +16,19 @@ void SpriteBatch::Begin(ID3D12GraphicsCommandList*, ConstantBufferAllocator&, UI
 void SpriteBatch::DrawRect(const RECT&, FXMVECTOR) {}
 void SpriteBatch::End() {}
 void SpriteBatch::FlushBatch() {}
+
+// ── BitmapFont stubs ──────────────────────────────────────────────────────
+com_ptr<ID3D12PipelineState>  BitmapFont::s_pso;
+com_ptr<ID3D12RootSignature>  BitmapFont::s_rootSignature;
+bool BitmapFont::s_pipelineReady = false;
+
+void BitmapFont::LoadFromFile(const std::wstring&) {}
+void BitmapFont::CreatePipeline() {}
+void BitmapFont::BeginDraw(ID3D12GraphicsCommandList*, ConstantBufferAllocator&, ShaderVisibleHeap&, UINT, UINT) {}
+void XM_CALLCONV BitmapFont::DrawString(float, float, std::string_view, FXMVECTOR, float) {}
+void BitmapFont::EndDraw() {}
+void BitmapFont::FlushBatch() {}
+float BitmapFont::MeasureString(std::string_view, float) const noexcept { return 0.0f; }
 
 // ── Camera stubs ──────────────────────────────────────────────────────────
 Camera::Camera() noexcept {}

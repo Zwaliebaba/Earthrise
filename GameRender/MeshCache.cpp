@@ -29,6 +29,8 @@ const char* MeshCache::GetCategoryFolder(SpaceObjectCategory category) noexcept
   case SpaceObjectCategory::SpaceObject: return "SpaceObjects";
   case SpaceObjectCategory::Station:     return "Stations";
   case SpaceObjectCategory::Turret:      return "Turrets";
+  case SpaceObjectCategory::Planet:      return "Planets";
+  case SpaceObjectCategory::Sun:         return "Suns";
   default:                               return "";
   }
 }

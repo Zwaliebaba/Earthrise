@@ -2,6 +2,7 @@
 
 // GameRender public headers — include this from client projects
 #include "Camera.h"
+#include "BitmapFont.h"
 #include "CategoryRenderers.h"
 #include "CmoLoader.h"
 #include "ConstantBufferAllocator.h"

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ChatUI.h"
 #include "SpriteBatch.h"
+#include "BitmapFont.h"
 
 using namespace Neuron;
 using namespace Neuron::Graphics;
@@ -79,11 +80,11 @@ std::vector<const ChatUI::ChatEntry*> ChatUI::GetVisibleMessages() const
 void ChatUI::Render(ID3D12GraphicsCommandList* _cmdList,
   ConstantBufferAllocator& _cbAlloc,
   SpriteBatch& _spriteBatch,
+  BitmapFont& _font,
+  ShaderVisibleHeap& _srvHeap,
   UINT _screenWidth, UINT _screenHeight)
 {
   // Chat panel is rendered at bottom-center of screen.
-  // Without text rendering, we show colored bars as message indicators
-  // and a typing bar when input is active.
   constexpr LONG CHAT_WIDTH  = 400;
   constexpr LONG LINE_HEIGHT = 14;
   constexpr LONG MARGIN      = 20;
@@ -92,24 +93,16 @@ void ChatUI::Render(ID3D12GraphicsCommandList* _cmdList,
   LONG panelLeft = static_cast<LONG>(_screenWidth / 2) - CHAT_WIDTH / 2;
   LONG panelBottom = static_cast<LONG>(_screenHeight) - MARGIN;
 
-  _spriteBatch.Begin(_cmdList, _cbAlloc, _screenWidth, _screenHeight);
-
   auto visible = GetVisibleMessages();
 
-  // Render message bars (colored line per message to indicate channel activity)
+  // ── Background bars (solid-color pass) ──────────────────────────────
+  _spriteBatch.Begin(_cmdList, _cbAlloc, _screenWidth, _screenHeight);
+
   LONG y = panelBottom - INPUT_HEIGHT - static_cast<LONG>(visible.size()) * LINE_HEIGHT;
   for (const auto* msg : visible)
   {
-    // Channel color
-    XMVECTORF32 barColor;
-    switch (msg->Channel)
-    {
-    case ChatChannel::Zone:    barColor = { 0.8f, 0.8f, 0.8f, 0.5f }; break;
-    case ChatChannel::Party:   barColor = { 0.3f, 0.5f, 1.0f, 0.5f }; break;
-    case ChatChannel::Whisper: barColor = { 0.8f, 0.3f, 0.8f, 0.5f }; break;
-    case ChatChannel::System:  barColor = { 1.0f, 1.0f, 0.3f, 0.5f }; break;
-    default:                   barColor = { 0.5f, 0.5f, 0.5f, 0.5f }; break;
-    }
+    // Semi-transparent background per message line
+    XMVECTORF32 bgColor = { 0.0f, 0.0f, 0.0f, 0.35f };
 
     // Fade with age (when not typing)
     if (!m_isTyping && msg->Age > MESSAGE_FADE_TIME * 0.7f)
@@ -117,15 +110,15 @@ void ChatUI::Render(ID3D12GraphicsCommandList* _cmdList,
       float fade = 1.0f - (msg->Age - MESSAGE_FADE_TIME * 0.7f) /
         (MESSAGE_FADE_TIME * 0.3f);
       fade = (std::max)(0.0f, fade);
-      barColor.f[3] *= fade;
+      bgColor.f[3] *= fade;
     }
 
     RECT msgBar = { panelLeft, y, panelLeft + CHAT_WIDTH, y + LINE_HEIGHT - 2 };
-    _spriteBatch.DrawRect(msgBar, barColor);
+    _spriteBatch.DrawRect(msgBar, bgColor);
     y += LINE_HEIGHT;
   }
 
-  // Typing input bar
+  // Typing input bar background
   if (m_isTyping)
   {
     XMVECTORF32 inputBg = { 0.0f, 0.0f, 0.0f, 0.7f };
@@ -133,16 +126,7 @@ void ChatUI::Render(ID3D12GraphicsCommandList* _cmdList,
                        panelLeft + CHAT_WIDTH, panelBottom };
     _spriteBatch.DrawRect(inputRect, inputBg);
 
-    // Cursor indicator
-    LONG cursorX = panelLeft + 4 + static_cast<LONG>(m_inputBuffer.size()) * 6;
-    if (cursorX > panelLeft + CHAT_WIDTH - 4)
-      cursorX = panelLeft + CHAT_WIDTH - 4;
-    XMVECTORF32 cursorColor = { 0.0f, 1.0f, 0.0f, 0.8f };
-    RECT cursor = { cursorX, panelBottom - INPUT_HEIGHT + 2,
-                    cursorX + 2, panelBottom - 2 };
-    _spriteBatch.DrawRect(cursor, cursorColor);
-
-    // Input bar border
+    // Typing input bar border
     XMVECTORF32 borderColor = { 0.0f, 1.0f, 0.0f, 0.6f };
     RECT top = { panelLeft, panelBottom - INPUT_HEIGHT,
                  panelLeft + CHAT_WIDTH, panelBottom - INPUT_HEIGHT + 1 };
@@ -150,4 +134,67 @@ void ChatUI::Render(ID3D12GraphicsCommandList* _cmdList,
   }
 
   _spriteBatch.End();
+
+  // ── Text rendering (font pass) ──────────────────────────────────────
+  if (!_font.IsLoaded())
+    return;
+
+  _font.BeginDraw(_cmdList, _cbAlloc, _srvHeap, _screenWidth, _screenHeight);
+
+  // Render message text
+  y = panelBottom - INPUT_HEIGHT - static_cast<LONG>(visible.size()) * LINE_HEIGHT;
+  for (const auto* msg : visible)
+  {
+    // Channel color for sender name
+    XMVECTORF32 senderColor;
+    switch (msg->Channel)
+    {
+    case ChatChannel::Zone:    senderColor = { 0.9f, 0.9f, 0.9f, 1.0f }; break;
+    case ChatChannel::Party:   senderColor = { 0.4f, 0.6f, 1.0f, 1.0f }; break;
+    case ChatChannel::Whisper: senderColor = { 0.9f, 0.4f, 0.9f, 1.0f }; break;
+    case ChatChannel::System:  senderColor = { 1.0f, 1.0f, 0.3f, 1.0f }; break;
+    default:                   senderColor = { 0.7f, 0.7f, 0.7f, 1.0f }; break;
+    }
+
+    // Fade alpha with age
+    float alpha = 1.0f;
+    if (!m_isTyping && msg->Age > MESSAGE_FADE_TIME * 0.7f)
+    {
+      alpha = 1.0f - (msg->Age - MESSAGE_FADE_TIME * 0.7f) /
+        (MESSAGE_FADE_TIME * 0.3f);
+      alpha = (std::max)(0.0f, alpha);
+    }
+
+    constexpr float TEXT_SCALE = 0.75f; // 12px glyphs (16 * 0.75)
+    float textX = static_cast<float>(panelLeft + 4);
+    float textY = static_cast<float>(y) + 1.0f;
+
+    // Draw "Sender: "
+    std::string senderPrefix = msg->Sender + ": ";
+    XMVECTOR sColor = XMVectorSetW(senderColor, alpha);
+    _font.DrawString(textX, textY, senderPrefix, sColor, TEXT_SCALE);
+
+    // Draw message text in white
+    float msgX = textX + _font.MeasureString(senderPrefix, TEXT_SCALE);
+    XMVECTOR textColor = XMVectorSet(0.9f, 0.9f, 0.9f, alpha);
+    _font.DrawString(msgX, textY, msg->Text, textColor, TEXT_SCALE);
+
+    y += LINE_HEIGHT;
+  }
+
+  // Render typing input text
+  if (m_isTyping && !m_inputBuffer.empty())
+  {
+    constexpr float TEXT_SCALE = 0.75f;
+    float inputX = static_cast<float>(panelLeft + 4);
+    float inputY = static_cast<float>(panelBottom - INPUT_HEIGHT) + 4.0f;
+    XMVECTOR inputColor = XMVectorSet(0.0f, 1.0f, 0.0f, 0.9f);
+    _font.DrawString(inputX, inputY, m_inputBuffer, inputColor, TEXT_SCALE);
+
+    // Blinking cursor after text
+    float cursorX = inputX + _font.MeasureString(m_inputBuffer, TEXT_SCALE);
+    _font.DrawString(cursorX, inputY, "_", inputColor, TEXT_SCALE);
+  }
+
+  _font.EndDraw();
 }

@@ -479,5 +479,56 @@ namespace EarthRiseTests::Networking
       Assert::AreEqual(original.Color.y, parsed.Color.y);
       Assert::IsTrue(original.Surface == parsed.Surface);
     }
+
+    TEST_METHOD(EntitySpawnPlanetRoundTrip)
+    {
+      EntitySpawnMsg original;
+      original.Handle = EntityHandle(200, 3);
+      original.Category = SpaceObjectCategory::Planet;
+      original.MeshHash = 0x12345678;
+      original.Position = { -30000, 8000, 25000 };
+      original.Orientation = { 0, 0, 0, 1 };
+      original.Color = { 0.6f, 0.5f, 0.3f, 1 };
+      original.Surface = SurfaceType::Desert;
+
+      DataWriter w;
+      original.Write(w);
+
+      DataReader r(reinterpret_cast<const uint8_t*>(w.Data()), static_cast<size_t>(w.Size()));
+      EntitySpawnMsg parsed;
+      parsed.Read(r);
+
+      Assert::AreEqual(original.Handle.m_id, parsed.Handle.m_id);
+      Assert::IsTrue(parsed.Category == SpaceObjectCategory::Planet);
+      Assert::AreEqual(original.MeshHash, parsed.MeshHash);
+      Assert::AreEqual(original.Position.x, parsed.Position.x);
+      Assert::AreEqual(original.Position.z, parsed.Position.z);
+      Assert::IsTrue(parsed.Surface == SurfaceType::Desert);
+    }
+
+    TEST_METHOD(EntitySpawnSunRoundTrip)
+    {
+      EntitySpawnMsg original;
+      original.Handle = EntityHandle(300, 1);
+      original.Category = SpaceObjectCategory::Sun;
+      original.MeshHash = 0; // Sun has no mesh
+      original.Position = { 0, 5000, 40000 };
+      original.Orientation = { 0, 0, 0, 1 };
+      original.Color = { 1.0f, 0.95f, 0.8f, 1 };
+      original.Surface = SurfaceType::Default;
+
+      DataWriter w;
+      original.Write(w);
+
+      DataReader r(reinterpret_cast<const uint8_t*>(w.Data()), static_cast<size_t>(w.Size()));
+      EntitySpawnMsg parsed;
+      parsed.Read(r);
+
+      Assert::AreEqual(original.Handle.m_id, parsed.Handle.m_id);
+      Assert::IsTrue(parsed.Category == SpaceObjectCategory::Sun);
+      Assert::AreEqual(0u, parsed.MeshHash);
+      Assert::AreEqual(original.Position.y, parsed.Position.y);
+      Assert::AreEqual(original.Color.x, parsed.Color.x);
+    }
   };
 }

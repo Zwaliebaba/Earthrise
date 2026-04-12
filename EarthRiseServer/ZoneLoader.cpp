@@ -2,6 +2,8 @@
 #include "ZoneLoader.h"
 #include "GameTypes/ObjectDefs.h"
 #include "GameTypes/SurfaceType.h"
+#include "GameTypes/PlanetData.h"
+#include "GameTypes/SunData.h"
 
 namespace EarthRise
 {
@@ -120,6 +122,42 @@ namespace EarthRise
       {
         gd->ActivationRadius = 4.0f;
         gd->DestinationPosition = { -196.0f, 0.0f, 0.0f }; // Near gate1
+      }
+    }
+
+    // Spawn celestial bodies (camera-locked on client; positions define direction only)
+    {
+      // Sun — center of the system, far above the action plane
+      auto sunHandle = mgr.CreateEntity(Neuron::SpaceObjectCategory::Sun,
+        XMFLOAT3{ 0.0f, 5000.0f, 40000.0f }, 0); // MeshHash 0: billboard, no .cmo
+      if (auto* obj = mgr.GetSpaceObject(sunHandle))
+      {
+        obj->Color = { 1.0f, 0.85f, 0.4f, 1.0f };
+        obj->BoundingRadius = 500.0f;
+      }
+      if (auto* sd = mgr.GetSunData(sunHandle))
+      {
+        sd->VisualRadius = 800.0f;
+      }
+
+      // Planet 1 — rocky/desert, upper-left of sky
+      auto planet1 = mgr.CreateEntity(Neuron::SpaceObjectCategory::Planet,
+        XMFLOAT3{ -30000.0f, 8000.0f, 25000.0f }, Neuron::HashMeshName("Planet01"));
+      if (auto* obj = mgr.GetSpaceObject(planet1))
+      {
+        obj->Color = { 0.8f, 0.6f, 0.4f, 1.0f };
+        obj->BoundingRadius = 300.0f;
+        obj->Surface = Neuron::SurfaceType::Desert;
+      }
+
+      // Planet 2 — icy, lower-right of sky
+      auto planet2 = mgr.CreateEntity(Neuron::SpaceObjectCategory::Planet,
+        XMFLOAT3{ 20000.0f, -5000.0f, 35000.0f }, Neuron::HashMeshName("Planet02"));
+      if (auto* obj = mgr.GetSpaceObject(planet2))
+      {
+        obj->Color = { 0.5f, 0.7f, 0.9f, 1.0f };
+        obj->BoundingRadius = 250.0f;
+        obj->Surface = Neuron::SurfaceType::IceCap;
       }
     }
 

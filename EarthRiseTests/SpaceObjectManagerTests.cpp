@@ -123,5 +123,50 @@ namespace EarthRiseTests::Core
       GameLogic::SpaceObjectManager mgr;
       Assert::IsNull(mgr.GetSpaceObject(EntityHandle::Invalid()));
     }
+
+    TEST_METHOD(PlanetCategoryHasPlanetData)
+    {
+      GameLogic::SpaceObjectManager mgr;
+      EntityHandle planet = mgr.CreateEntity(SpaceObjectCategory::Planet,
+        XMFLOAT3{ 1000.0f, 2000.0f, 3000.0f }, 0xABCD, 0);
+
+      SpaceObject* obj = mgr.GetSpaceObject(planet);
+      Assert::IsNotNull(obj);
+      Assert::IsTrue(obj->Category == SpaceObjectCategory::Planet);
+
+      Assert::IsNotNull(mgr.GetPlanetData(planet));
+      Assert::IsNull(mgr.GetSunData(planet));
+      Assert::IsNull(mgr.GetShipData(planet));
+    }
+
+    TEST_METHOD(SunCategoryHasSunData)
+    {
+      GameLogic::SpaceObjectManager mgr;
+      EntityHandle sun = mgr.CreateEntity(SpaceObjectCategory::Sun,
+        XMFLOAT3{ 0.0f, 5000.0f, 40000.0f }, 0, 0);
+
+      SpaceObject* obj = mgr.GetSpaceObject(sun);
+      Assert::IsNotNull(obj);
+      Assert::IsTrue(obj->Category == SpaceObjectCategory::Sun);
+
+      Assert::IsNotNull(mgr.GetSunData(sun));
+      Assert::IsNull(mgr.GetPlanetData(sun));
+      Assert::IsNull(mgr.GetShipData(sun));
+    }
+
+    TEST_METHOD(PlanetDestroyAndRecreate)
+    {
+      GameLogic::SpaceObjectManager mgr;
+      EntityHandle planet = mgr.CreateEntity(SpaceObjectCategory::Planet);
+      Assert::IsTrue(mgr.IsValid(planet));
+
+      mgr.DestroyEntity(planet);
+      Assert::IsFalse(mgr.IsValid(planet));
+      Assert::AreEqual(0u, mgr.ActiveCount());
+
+      EntityHandle planet2 = mgr.CreateEntity(SpaceObjectCategory::Planet);
+      Assert::IsTrue(mgr.IsValid(planet2));
+      Assert::IsNotNull(mgr.GetPlanetData(planet2));
+    }
   };
 }

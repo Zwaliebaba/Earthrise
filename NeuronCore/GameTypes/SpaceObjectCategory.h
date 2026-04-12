@@ -16,8 +16,10 @@ namespace Neuron
     Projectile,
     Station,
     Turret,
+    Planet,
+    Sun,
 
     COUNT         // Sentinel for ENUM_HELPER
   };
-  ENUM_HELPER(SpaceObjectCategory, SpaceObject, Turret)
+  ENUM_HELPER(SpaceObjectCategory, SpaceObject, Sun)
 }

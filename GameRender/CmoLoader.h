@@ -37,4 +37,11 @@ namespace Neuron::Graphics
     [[nodiscard]] std::vector<CmoMeshData> LoadFromFile(const std::wstring& filePath);
     [[nodiscard]] std::vector<CmoMeshData> LoadFromMemory(const uint8_t* data, size_t size);
   }
+
+  // Procedural mesh generators — produce CmoMeshData without loading from disk.
+  namespace ProceduralMesh
+  {
+    // Generate a UV sphere with unit radius. rings = latitude bands, slices = longitude bands.
+    [[nodiscard]] CmoMeshData GenerateUVSphere(uint32_t rings, uint32_t slices);
+  }
 }

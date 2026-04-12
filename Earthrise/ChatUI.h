@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Messages.h"
+#include "BitmapFont.h"
+#include "ShaderVisibleHeap.h"
 
 namespace Neuron::Graphics { class ConstantBufferAllocator; class SpriteBatch; }
 
@@ -64,6 +66,8 @@ public:
   void Render(ID3D12GraphicsCommandList* _cmdList,
     Neuron::Graphics::ConstantBufferAllocator& _cbAlloc,
     Neuron::Graphics::SpriteBatch& _spriteBatch,
+    Neuron::Graphics::BitmapFont& _font,
+    Neuron::Graphics::ShaderVisibleHeap& _srvHeap,
     UINT _screenWidth, UINT _screenHeight);
 
   // Active channel for outgoing messages.

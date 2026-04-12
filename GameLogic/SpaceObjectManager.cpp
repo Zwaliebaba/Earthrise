@@ -15,6 +15,8 @@ namespace GameLogic
     m_projectileData.resize(MAX_ENTITIES);
     m_stationData.resize(MAX_ENTITIES);
     m_turretData.resize(MAX_ENTITIES);
+    m_planetData.resize(MAX_ENTITIES);
+    m_sunData.resize(MAX_ENTITIES);
   }
 
   Neuron::EntityHandle SpaceObjectManager::CreateEntity(
@@ -50,6 +52,8 @@ namespace GameLogic
     case Neuron::SpaceObjectCategory::Projectile:  m_projectileData[idx] = Neuron::ProjectileData{ handle }; break;
     case Neuron::SpaceObjectCategory::Station:     m_stationData[idx] = Neuron::StationData{ handle };      break;
     case Neuron::SpaceObjectCategory::Turret:      m_turretData[idx] = Neuron::TurretData{ handle };        break;
+    case Neuron::SpaceObjectCategory::Planet:      m_planetData[idx] = Neuron::PlanetData{ handle };        break;
+    case Neuron::SpaceObjectCategory::Sun:         m_sunData[idx] = Neuron::SunData{ handle };              break;
     default: break;
     }
 
@@ -108,6 +112,8 @@ namespace GameLogic
   CATEGORY_ACCESSOR(ProjectileData,  m_projectileData,  Projectile)
   CATEGORY_ACCESSOR(StationData,     m_stationData,     Station)
   CATEGORY_ACCESSOR(TurretData,      m_turretData,      Turret)
+  CATEGORY_ACCESSOR(PlanetData,      m_planetData,      Planet)
+  CATEGORY_ACCESSOR(SunData,         m_sunData,         Sun)
 
   #undef CATEGORY_ACCESSOR
 }

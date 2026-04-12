@@ -61,9 +61,14 @@ SurfaceMesh* SurfaceRenderer::GetSurfaceMesh(std::string_view meshKey,
 
   if (GetFileAttributesW(filePath.c_str()) == INVALID_FILE_ATTRIBUTES)
   {
-    Neuron::DebugTrace("SurfaceRenderer: mesh file not found — {}",
+    // No .cmo on disk — generate a procedural sphere (planet fallback)
+    Neuron::DebugTrace("SurfaceRenderer: mesh file not found, generating procedural sphere — {}",
                        std::string(meshKey));
-    return nullptr;
+    auto sphereData = ProceduralMesh::GenerateUVSphere(24, 24);
+    auto surfMesh = BuildSurfaceMesh(sphereData, surfaceType);
+    auto* ptr = surfMesh.get();
+    m_meshCache[key] = std::move(surfMesh);
+    return ptr;
   }
 
   auto meshDataVec = CmoLoader::LoadFromFile(filePath);

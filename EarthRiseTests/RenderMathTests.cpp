@@ -275,4 +275,131 @@ namespace EarthRiseTests::Rendering
         L"Index counts should match");
     }
   };
+
+  TEST_CLASS(ProceduralMeshTests)
+  {
+  public:
+    TEST_METHOD(UVSphereHasExpectedVertexCount)
+    {
+      // (rings + 1) * (slices + 1) vertices
+      auto mesh = ProceduralMesh::GenerateUVSphere(16, 16);
+      Assert::AreEqual(static_cast<size_t>(17 * 17), mesh.Vertices.size(),
+        L"16x16 sphere should have (16+1)*(16+1) = 289 vertices");
+    }
+
+    TEST_METHOD(UVSphereHasExpectedTriangleCount)
+    {
+      // rings * slices * 2 triangles * 3 indices
+      auto mesh = ProceduralMesh::GenerateUVSphere(16, 16);
+      Assert::AreEqual(static_cast<size_t>(16 * 16 * 6), mesh.Indices.size(),
+        L"16x16 sphere should have 16*16*6 = 1536 indices");
+      Assert::AreEqual(0u, static_cast<uint32_t>(mesh.Indices.size() % 3),
+        L"Index count must be divisible by 3");
+    }
+
+    TEST_METHOD(UVSphereIndicesWithinVertexRange)
+    {
+      auto mesh = ProceduralMesh::GenerateUVSphere(24, 24);
+      for (size_t i = 0; i < mesh.Indices.size(); ++i)
+      {
+        Assert::IsTrue(mesh.Indices[i] < mesh.Vertices.size(),
+          L"All indices must reference valid vertices");
+      }
+    }
+
+    TEST_METHOD(UVSphereNormalsAreUnitLength)
+    {
+      auto mesh = ProceduralMesh::GenerateUVSphere(24, 24);
+      for (const auto& v : mesh.Vertices)
+      {
+        XMVECTOR n = XMLoadFloat3(&v.Normal);
+        float len = XMVectorGetX(XMVector3Length(n));
+        Assert::IsTrue(fabsf(len - 1.0f) < 0.001f,
+          L"Sphere normals should be unit length");
+      }
+    }
+
+    TEST_METHOD(UVSphereHasOneSubmeshCoveringAllIndices)
+    {
+      auto mesh = ProceduralMesh::GenerateUVSphere(20, 20);
+      Assert::AreEqual(static_cast<size_t>(1), mesh.Submeshes.size(),
+        L"Should have exactly one submesh");
+      Assert::AreEqual(0u, mesh.Submeshes[0].StartIndex,
+        L"Submesh should start at index 0");
+      Assert::AreEqual(static_cast<uint32_t>(mesh.Indices.size()), mesh.Submeshes[0].IndexCount,
+        L"Submesh should cover all indices");
+    }
+
+    TEST_METHOD(UVSphereTexCoordsParallelToVertices)
+    {
+      auto mesh = ProceduralMesh::GenerateUVSphere(12, 12);
+      Assert::AreEqual(mesh.Vertices.size(), mesh.TexCoords.size(),
+        L"TexCoords array must be parallel to Vertices array");
+    }
+
+    TEST_METHOD(UVSphereVerticesAreOnUnitSphere)
+    {
+      auto mesh = ProceduralMesh::GenerateUVSphere(20, 20);
+      for (const auto& v : mesh.Vertices)
+      {
+        XMVECTOR p = XMLoadFloat3(&v.Position);
+        float len = XMVectorGetX(XMVector3Length(p));
+        Assert::IsTrue(fabsf(len - 1.0f) < 0.001f,
+          L"All vertices should lie on the unit sphere");
+      }
+    }
+
+    TEST_METHOD(UVSphereFitsUint16Indices)
+    {
+      // Max practical size: 128x128 → (129*129) = 16641 verts, well within uint16_t
+      auto mesh = ProceduralMesh::GenerateUVSphere(128, 128);
+      Assert::IsTrue(mesh.Vertices.size() <= 65535,
+        L"128x128 sphere must fit in uint16_t indices");
+      for (uint16_t idx : mesh.Indices)
+      {
+        Assert::IsTrue(idx < mesh.Vertices.size(),
+          L"All indices must reference valid vertices at max size");
+      }
+    }
+
+    TEST_METHOD(UVSphereUnindexingProducesValidData)
+    {
+      // Simulate what BuildSurfaceMesh does: unindex the mesh and assign
+      // barycentric coordinates. Verify no out-of-bounds access.
+      auto mesh = ProceduralMesh::GenerateUVSphere(24, 24);
+
+      const size_t triCount = mesh.Indices.size() / 3;
+      std::vector<FlatColorVertex> unindexedVerts;
+      unindexedVerts.reserve(triCount * 3);
+      std::vector<uint16_t> unindexedIndices;
+      unindexedIndices.reserve(triCount * 3);
+
+      for (size_t t = 0; t < triCount; ++t)
+      {
+        uint16_t i0 = mesh.Indices[t * 3 + 0];
+        uint16_t i1 = mesh.Indices[t * 3 + 1];
+        uint16_t i2 = mesh.Indices[t * 3 + 2];
+
+        Assert::IsTrue(i0 < mesh.Vertices.size(), L"i0 in range");
+        Assert::IsTrue(i1 < mesh.Vertices.size(), L"i1 in range");
+        Assert::IsTrue(i2 < mesh.Vertices.size(), L"i2 in range");
+
+        auto baseIdx = static_cast<uint16_t>(unindexedVerts.size());
+
+        unindexedVerts.push_back(mesh.Vertices[i0]);
+        unindexedVerts.push_back(mesh.Vertices[i1]);
+        unindexedVerts.push_back(mesh.Vertices[i2]);
+
+        unindexedIndices.push_back(baseIdx);
+        unindexedIndices.push_back(static_cast<uint16_t>(baseIdx + 1));
+        unindexedIndices.push_back(static_cast<uint16_t>(baseIdx + 2));
+      }
+
+      // After unindexing, vertex count == index count == triCount * 3
+      Assert::AreEqual(unindexedVerts.size(), unindexedIndices.size(),
+        L"Unindexed vertex and index counts should match");
+      Assert::IsTrue(unindexedVerts.size() <= 65535,
+        L"Unindexed vertex count must fit in uint16_t");
+    }
+  };
 }

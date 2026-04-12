@@ -27,6 +27,8 @@ void ClientWorldState::ApplySpawn(const EntitySpawnMsg& _msg)
   auto it = m_meshHashToKey.find(_msg.MeshHash);
   if (it != m_meshHashToKey.end())
     entity.MeshKey = it->second;
+  else if (_msg.Category == SpaceObjectCategory::Planet)
+    entity.MeshKey = "Planets/Procedural";
 
   m_entities[_msg.Handle.m_id] = std::move(entity);
   m_activeCount = 0;

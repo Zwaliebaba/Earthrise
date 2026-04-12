@@ -22,6 +22,14 @@ namespace Neuron::Graphics
       ID3D12Resource* sceneRT,
       float threshold = 0.8f);
 
+    // LDR-compatible bloom: extract + blur + additive composite onto back buffer.
+    // Does NOT require a scene RT as SRV — bloom is additively blended on top.
+    void ApplyBloomAdditive(ID3D12GraphicsCommandList* cmdList,
+      ConstantBufferAllocator& cbAlloc,
+      ShaderVisibleHeap& srvHeap,
+      ID3D12Resource* sceneRT,
+      float threshold = 0.65f) const;
+
   private:
     void CreateResources(UINT width, UINT height);
 
@@ -34,6 +42,7 @@ namespace Neuron::Graphics
     com_ptr<ID3D12PipelineState> m_extractPSO;
     com_ptr<ID3D12PipelineState> m_blurPSO;
     com_ptr<ID3D12PipelineState> m_compositePSO;
+    com_ptr<ID3D12PipelineState> m_compositeAdditivePSO;
 
     UINT m_width = 0;
     UINT m_height = 0;

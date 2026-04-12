@@ -102,6 +102,6 @@ namespace Neuron::Graphics
 
     // Compute cache key from mesh key + surface type
     [[nodiscard]] static uint64_t ComputeCacheKey(std::string_view meshKey,
-                                                  Neuron::SurfaceType surfaceType) noexcept;
+                                                   Neuron::SurfaceType surfaceType) noexcept;
   };
 }

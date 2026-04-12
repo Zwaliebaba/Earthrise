@@ -1,6 +1,7 @@
 # GameRender — rendering static library (client only)
 add_library(GameRender STATIC
     pch.cpp
+    BitmapFont.cpp
     Camera.cpp
     CmoLoader.cpp
     DdsLoader.cpp
@@ -15,6 +16,7 @@ add_library(GameRender STATIC
     SpaceObjectRenderer.cpp
     SpriteBatch.cpp
     Starfield.cpp
+    SunBillboard.cpp
     SurfaceRenderer.cpp
     TacticalGrid.cpp
     UploadHeap.cpp

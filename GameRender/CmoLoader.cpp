@@ -239,6 +239,69 @@ std::vector<CmoMeshData> CmoLoader::LoadFromMemory(const uint8_t* data, size_t s
   return meshes;
 }
 
+CmoMeshData ProceduralMesh::GenerateUVSphere(uint32_t rings, uint32_t slices)
+{
+  CmoMeshData data;
+  data.Name = L"ProceduralSphere";
+
+  // Generate vertices: (rings + 1) latitude rows × (slices + 1) longitude columns.
+  // Unit radius — caller applies scale via the world matrix.
+  for (uint32_t r = 0; r <= rings; ++r)
+  {
+    float theta = static_cast<float>(r) * XM_PI / static_cast<float>(rings);
+    float sinT = sinf(theta);
+    float cosT = cosf(theta);
+
+    for (uint32_t s = 0; s <= slices; ++s)
+    {
+      float phi = static_cast<float>(s) * XM_2PI / static_cast<float>(slices);
+      float sinP = sinf(phi);
+      float cosP = cosf(phi);
+
+      XMFLOAT3 pos = { sinT * cosP, cosT, sinT * sinP };
+      XMFLOAT3 normal = pos; // Unit sphere — normal == position
+
+      data.Vertices.push_back({ pos, normal });
+      data.TexCoords.push_back({
+        static_cast<float>(s) / static_cast<float>(slices),
+        static_cast<float>(r) / static_cast<float>(rings)
+      });
+    }
+  }
+
+  // Generate triangle indices.
+  uint32_t vertsPerRow = slices + 1;
+  for (uint32_t r = 0; r < rings; ++r)
+  {
+    for (uint32_t s = 0; s < slices; ++s)
+    {
+      uint16_t tl = static_cast<uint16_t>(r * vertsPerRow + s);
+      uint16_t tr = static_cast<uint16_t>(tl + 1);
+      uint16_t bl = static_cast<uint16_t>((r + 1) * vertsPerRow + s);
+      uint16_t br = static_cast<uint16_t>(bl + 1);
+
+      // Upper triangle
+      data.Indices.push_back(tl);
+      data.Indices.push_back(bl);
+      data.Indices.push_back(tr);
+
+      // Lower triangle
+      data.Indices.push_back(tr);
+      data.Indices.push_back(bl);
+      data.Indices.push_back(br);
+    }
+  }
+
+  // Single submesh covering all indices
+  CmoSubmesh sub{};
+  sub.MaterialIndex = 0;
+  sub.StartIndex = 0;
+  sub.IndexCount = static_cast<uint32_t>(data.Indices.size());
+  data.Submeshes.push_back(sub);
+
+  return data;
+}
+
 std::vector<CmoMeshData> CmoLoader::LoadFromFile(const std::wstring& filePath)
 {
   // Read entire file into memory
