@@ -24,6 +24,8 @@ namespace GameLogic
     [[nodiscard]] const std::vector<Neuron::ProjectileDef>&  GetProjectileDefs()  const noexcept { return m_projectileDefs; }
     [[nodiscard]] const std::vector<Neuron::StationDef>&     GetStationDefs()     const noexcept { return m_stationDefs; }
     [[nodiscard]] const std::vector<Neuron::TurretDef>&      GetTurretDefs()      const noexcept { return m_turretDefs; }
+    [[nodiscard]] const std::vector<Neuron::PlanetDef>&      GetPlanetDefs()      const noexcept { return m_planetDefs; }
+    [[nodiscard]] const std::vector<Neuron::SunDef>&         GetSunDefs()         const noexcept { return m_sunDefs; }
 
     // Lookup a definition by DefId (linear search — called infrequently at spawn time).
     [[nodiscard]] const Neuron::ObjectDefBase* FindDef(uint16_t _defId) const noexcept;
@@ -39,5 +41,7 @@ namespace GameLogic
     std::vector<Neuron::ProjectileDef>  m_projectileDefs;
     std::vector<Neuron::StationDef>     m_stationDefs;
     std::vector<Neuron::TurretDef>      m_turretDefs;
+    std::vector<Neuron::PlanetDef>      m_planetDefs;
+    std::vector<Neuron::SunDef>         m_sunDefs;
   };
 }

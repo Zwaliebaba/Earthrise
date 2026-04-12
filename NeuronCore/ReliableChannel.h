@@ -48,6 +48,7 @@ namespace Neuron
     static int BuildAck(uint16_t _seq, void* _outBuffer, int _bufferSize);
 
     [[nodiscard]] uint16_t NextSendSequence() const noexcept { return m_nextSendSeq; }
+    [[nodiscard]] size_t PendingCount() const noexcept { return m_pending.size(); }
 
   private:
     uint16_t m_nextSendSeq = 1;

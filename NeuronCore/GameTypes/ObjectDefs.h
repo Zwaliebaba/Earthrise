@@ -95,6 +95,25 @@ namespace Neuron
     float TrackingSpeed   = 2.0f;
   };
 
+  // Planet definition
+  struct PlanetDef : ObjectDefBase
+  {
+    float       MinOrbitRadius    = 10000.0f;
+    float       MaxOrbitRadius    = 40000.0f;
+    float       MinRotationSpeed  = 0.01f;
+    float       MaxRotationSpeed  = 0.1f;
+    SurfaceType Surface           = SurfaceType::Default;
+  };
+
+  // Sun definition
+  struct SunDef : ObjectDefBase
+  {
+    float MinLuminosity  = 0.8f;
+    float MaxLuminosity  = 1.5f;
+    float MinVisualRadius = 500.0f;
+    float MaxVisualRadius = 1200.0f;
+  };
+
   // Simple FNV-1a hash for mesh name strings.
   [[nodiscard]] constexpr uint32_t HashMeshName(std::string_view _name) noexcept
   {

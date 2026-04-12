@@ -25,9 +25,9 @@ The universe lives inside the existing `Zone` (100 km³). A seed drives determin
 
 ## 2. New & Modified Types
 
-### 2.1 SpaceObjectCategory additions
+### 2.1 SpaceObjectCategory additions — DONE
 
-Add two new categories to the existing enum:
+Two new categories added to the existing enum:
 
 ```cpp
 enum class SpaceObjectCategory : uint8_t
@@ -41,15 +41,15 @@ enum class SpaceObjectCategory : uint8_t
     Projectile,
     Station,
     Turret,
-    Planet,     // NEW
-    Sun,        // NEW
+    Planet,     
+    Sun,        
     COUNT
 };
 ```
 
 `ENUM_HELPER` sentinel updates from `Turret` → `Sun`.
 
-### 2.2 PlanetData (NeuronCore/GameTypes/PlanetData.h)
+### 2.2 PlanetData (NeuronCore/GameTypes/PlanetData.h) — DONE
 
 ```cpp
 struct PlanetData
@@ -62,13 +62,14 @@ struct PlanetData
 };
 ```
 
-### 2.3 SunData (NeuronCore/GameTypes/SunData.h)
+### 2.3 SunData (NeuronCore/GameTypes/SunData.h) — DONE
 
 ```cpp
 struct SunData
 {
     EntityHandle Owner;
     float        Luminosity     = 1.0f;   // Future: heat damage zone radius
+    float        VisualRadius   = 800.0f; // Billboard size for glow rendering
     float        RotationSpeed  = 0.0f;
     XMFLOAT3     RotationAxis   = { 0.0f, 1.0f, 0.0f };
 };
@@ -440,9 +441,9 @@ static bool LoadUniverse(Zone& _zone, uint64_t _seed,
 
 This replaces `CreateTestZone` for production use. It calls `UniverseGenerator::Generate(_seed)`, spawns all entities via `SpaceObjectManager::CreateEntity`, then applies the delta file.
 
-### 5.4 SpaceObjectManager Additions
+### 5.4 SpaceObjectManager Additions — DONE
 
-Add component arrays and accessors for `Planet` and `Sun`:
+Component arrays and accessors for `Planet` and `Sun` are implemented:
 
 ```cpp
 std::vector<Neuron::PlanetData> m_planetData;
@@ -451,6 +452,8 @@ std::vector<Neuron::SunData>    m_sunData;
 [[nodiscard]] PlanetData* GetPlanetData(EntityHandle _handle);
 [[nodiscard]] SunData*    GetSunData(EntityHandle _handle);
 ```
+
+Both arrays are sized to `MAX_ENTITIES` in the constructor, and `CreateEntity()` initializes the category-specific data for `Planet` and `Sun` entries.
 
 ### 5.5 StateBroadcaster
 
@@ -508,16 +511,29 @@ The blend ratio and ray count are tunable per cluster.
 
 ---
 
-## 7. Client-Side Rendering Considerations
+## 7. Client-Side Rendering — PARTIALLY DONE
 
-No new client systems are required initially — the universe is spawned server-side and replicated to clients via existing `EntitySpawnMsg`. However:
+The universe is spawned server-side and replicated to clients via existing `EntitySpawnMsg`. Planet and Sun rendering is implemented with the following architecture:
 
-- **New mesh assets** needed: planet meshes (spheres with color), sun meshes (emissive sphere), possibly new asteroid variants.
+### 7.1 Implemented
+
+- **MeshCache** — maps `Planet` → `Planets/` folder, `Sun` → `Suns/` folder for mesh asset lookup.
+- **Planet rendering** (`SurfaceRenderer`) — planets use the same landscape-colored surface pipeline as asteroids. Falls back to a procedural UV sphere if no mesh file is found. Camera-locked at 18 000 units distance with a visual scale of 1 200. Uses `SurfaceType` for landscape coloring.
+- **Sun rendering** (`SunBillboard`) — dedicated billboard renderer using `Glow.dds` texture with additive blending for a bloom-like effect. Camera-locked at 19 000 units distance (behind planets in depth order). Configurable `VisualRadius` and color.
+- **Render pass ordering** in `GameApp::RenderScene()`:
+  - Pass 1: Non-asteroid, non-planet, non-sun entities (flat-color pipeline)
+  - Pass 2: Asteroid + Planet entities (surface-colored pipeline, camera-locked)
+  - Pass 3: Sun billboard (additive blended, camera-locked)
+- **ClientWorldState** — deserializes planet spawn messages with default mesh key `"Planets/Procedural"` and reads `SurfaceType` for landscape coloring.
+- **TargetingUI** — planets and suns are currently **not targetable** (only Ships, Stations, Asteroids).
+
+### 7.2 Remaining
+
+- **New mesh assets** needed: additional planet and asteroid mesh variants for visual variety.
 - **LOD / draw distance**: 3 000 asteroids at once may stress the renderer. Consider:
   - Server-side relevance filtering: only send asteroid spawns to clients within a visibility radius (e.g., 20 km draw distance).
   - Or rely on client-side frustum culling (already in the render pipeline) — 3 000 entities with simple meshes should be fine with instanced rendering.
-- **Sun glow**: Future — could add a screen-space post-process for sun glow. Not required in first pass.
-- **Render categories**: `SpaceObjectRenderer` already dispatches by category. Add cases for `Planet` and `Sun` in the render switch — they are just meshes with a color like everything else.
+- **Sun glow**: Future — could add a screen-space post-process for sun glow beyond the current billboard approach.
 
 ---
 
@@ -527,14 +543,14 @@ No new client systems are required initially — the universe is spawned server-
 
 | Step | Files | Description |
 |---|---|---|
-| 1.1 | `NeuronCore/GameTypes/SpaceObjectCategory.h` | Add `Planet`, `Sun` to enum |
-| 1.2 | `NeuronCore/GameTypes/PlanetData.h` | New file — `PlanetData` struct |
-| 1.3 | `NeuronCore/GameTypes/SunData.h` | New file — `SunData` struct |
+| 1.1 | `NeuronCore/GameTypes/SpaceObjectCategory.h` | ~~Add `Planet`, `Sun` to enum~~ **DONE** |
+| 1.2 | `NeuronCore/GameTypes/PlanetData.h` | ~~New file — `PlanetData` struct~~ **DONE** |
+| 1.3 | `NeuronCore/GameTypes/SunData.h` | ~~New file — `SunData` struct (includes `VisualRadius`)~~ **DONE** |
 | 1.4 | `NeuronCore/GameTypes/AsteroidData.h` | Add `ClusterId`, `MaxResource` fields |
 | 1.5 | `NeuronCore/GameTypes/ObjectDefs.h` | Add `PlanetDef`, `SunDef` |
-| 1.6 | `GameLogic/SpaceObjectManager.h/.cpp` | Add `m_planetData`, `m_sunData` vectors + accessors |
+| 1.6 | `GameLogic/SpaceObjectManager.h/.cpp` | ~~Add `m_planetData`, `m_sunData` vectors + accessors~~ **DONE** |
 | 1.7 | `GameLogic/ObjectDefsLoader.h/.cpp` | Load `PlanetDef`, `SunDef` |
-| 1.8 | Build + fix all category switch statements | Compiler will flag missing `Planet`/`Sun` cases |
+| 1.8 | Build + fix all category switch statements | ~~Compiler will flag missing `Planet`/`Sun` cases~~ **DONE** |
 
 ### Phase 2 — Procedural Generation
 
@@ -570,9 +586,9 @@ No new client systems are required initially — the universe is spawned server-
 
 | Step | Files | Description |
 |---|---|---|
-| 5.1 | `GameRender/` | Add render cases for `Planet`, `Sun` categories |
-| 5.2 | `GameData/Meshes/` | Add planet, sun, additional asteroid mesh variants |
-| 5.3 | `Earthrise/ClientWorldState` | Handle new categories in spawn processing |
+| 5.1 | `GameRender/` | ~~Add render cases for `Planet`, `Sun` categories~~ **DONE** — `SurfaceRenderer` (planets), `SunBillboard` (suns), `MeshCache` category folders |
+| 5.2 | `GameData/Meshes/` | Add additional planet, sun, asteroid mesh variants |
+| 5.3 | `Earthrise/ClientWorldState` | ~~Handle new categories in spawn processing~~ **DONE** |
 | 5.4 | Performance profiling | Validate 3 000 asteroids render within frame budget |
 
 ---

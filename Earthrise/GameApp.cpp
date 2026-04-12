@@ -563,6 +563,40 @@ void GameApp::RenderCanvas()
   {
     m_editorFont.BeginDraw(cmdList, m_cbAlloc, m_srvHeap, screenW, screenH);
     m_editorFont.DrawString(10, 10, "EARTHRISE", XMVectorSet(0.0f, 1.0f, 0.6f, 1.0f), 1.0f);
+
+    // Connection status indicator (top-center)
+    auto connState = m_serverConnection.GetState();
+    if (connState != ServerConnection::State::Connected)
+    {
+      const char* statusText = nullptr;
+      XMVECTORF32 statusColor = {};
+
+      switch (connState)
+      {
+      case ServerConnection::State::Disconnected:
+        statusText = "OFFLINE";
+        statusColor = { 1.0f, 0.2f, 0.2f, 1.0f };
+        break;
+      case ServerConnection::State::Connecting:
+        statusText = "CONNECTING...";
+        statusColor = { 1.0f, 1.0f, 0.0f, 1.0f };
+        break;
+      case ServerConnection::State::Disconnecting:
+        statusText = "DISCONNECTING...";
+        statusColor = { 1.0f, 0.5f, 0.0f, 1.0f };
+        break;
+      default:
+        break;
+      }
+
+      if (statusText)
+      {
+        float textWidth = m_editorFont.MeasureString(statusText, 1.0f);
+        float cx = (static_cast<float>(screenW) - textWidth) * 0.5f;
+        m_editorFont.DrawString(cx, 40.0f, statusText, statusColor, 1.0f);
+      }
+    }
+
     m_editorFont.EndDraw();
   }
 }

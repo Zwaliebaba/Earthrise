@@ -98,4 +98,5 @@ void AudioEngine::UnregisterNotify(IVoiceNotify*, bool, bool) {}
 namespace Neuron
 {
   byte_buffer_t BinaryFile::ReadFile(const std::wstring&) { return {}; }
+  bool BinaryFile::WriteFile(const std::wstring&, const byte_buffer_t&) { return true; }
 }

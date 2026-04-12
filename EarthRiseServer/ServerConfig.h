@@ -15,6 +15,11 @@ namespace EarthRise
     std::string ZoneFile           = "GameData/Zones/default.zone";
     std::string LogFormat          = "json";
 
+    // Universe generation settings.
+    uint64_t    UniverseSeed       = 42;
+    std::string DeltaSavePath      = "GameData/universe_state.bin";
+    float       DeltaSaveIntervalSec = 60.0f;
+
     // Load configuration: reads .env file (if present), then environment
     // variable overrides. Returns the fully resolved config.
     [[nodiscard]] static ServerConfig Load(std::string_view envFilePath = ".env");

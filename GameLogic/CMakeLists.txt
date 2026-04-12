@@ -9,12 +9,16 @@ add_library(GameLogic STATIC
     FleetSystem.cpp
     JumpgateSystem.cpp
     LootSystem.cpp
+    MiningSystem.cpp
     MovementSystem.cpp
     NpcAI.cpp
     ObjectDefsLoader.cpp
     ProjectileSystem.cpp
+    RegrowthSystem.cpp
     SpaceObjectManager.cpp
     SpatialHash.cpp
+    UniverseGenerator.cpp
+    UniversePersistence.cpp
 )
 
 target_include_directories(GameLogic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

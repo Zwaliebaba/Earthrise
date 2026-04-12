@@ -186,9 +186,46 @@ void ServerConnection::NetworkThread()
       m_reliable.CollectResends(now, resends);
       for (const auto& pkt : resends)
         m_socket.SendTo(pkt.Data.data(), pkt.Size, m_serverAddr);
+
+      // If the login request was dropped after MAX_RESENDS, re-queue it.
+      RetryLogin(now);
     }
 
     // Yield to avoid busy-spinning when there's no data.
     std::this_thread::yield();
   }
+}
+
+void ServerConnection::RetryLogin(double _now)
+{
+  if (m_state.load(std::memory_order_acquire) != State::Connecting)
+    return;
+
+  if (m_reliable.PendingCount() > 0)
+    return; // Still retrying via the reliable channel
+
+  if (_now < m_nextRetryTime)
+    return;
+
+  Neuron::DebugTrace("ServerConnection: retrying login...\n");
+
+  Neuron::DataWriter writer;
+  Neuron::LoginRequest req;
+  req.PlayerName      = m_playerName;
+  req.ProtocolVersion = Neuron::ENGINE_VERSION;
+  req.Write(writer);
+
+  uint16_t seq = m_reliable.NextSendSequence();
+  int framed = Neuron::FramePacket(Neuron::MessageId::LoginRequest, seq,
+                                   Neuron::PACKET_FLAG_RELIABLE,
+                                   writer.Data(), writer.Size(),
+                                   m_sendBuffer.data(),
+                                   static_cast<int>(m_sendBuffer.size()));
+  if (framed > 0)
+  {
+    m_reliable.QueueReliable(m_sendBuffer.data(), framed, _now);
+    m_socket.SendTo(m_sendBuffer.data(), framed, m_serverAddr);
+  }
+
+  m_nextRetryTime = _now + RETRY_INTERVAL;
 }

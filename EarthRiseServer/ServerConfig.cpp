@@ -103,6 +103,21 @@ namespace EarthRise
     {
       LogFormat = std::string(value);
     }
+    else if (upper == "EARTHRISE_UNIVERSE_SEED")
+    {
+      uint64_t v = std::strtoull(std::string(value).c_str(), nullptr, 10);
+      UniverseSeed = v;
+    }
+    else if (upper == "EARTHRISE_DELTA_SAVE_PATH")
+    {
+      DeltaSavePath = std::string(value);
+    }
+    else if (upper == "EARTHRISE_DELTA_SAVE_INTERVAL")
+    {
+      float v = static_cast<float>(std::atof(std::string(value).c_str()));
+      if (v > 0.0f)
+        DeltaSaveIntervalSec = v;
+    }
   }
 
   ServerConfig ServerConfig::Load(std::string_view envFilePath)
@@ -132,6 +147,9 @@ namespace EarthRise
       "EARTHRISE_DB_CONNECTION_STRING",
       "EARTHRISE_ZONE_FILE",
       "EARTHRISE_LOG_FORMAT",
+      "EARTHRISE_UNIVERSE_SEED",
+      "EARTHRISE_DELTA_SAVE_PATH",
+      "EARTHRISE_DELTA_SAVE_INTERVAL",
     };
 
     for (const char* envKey : keys)

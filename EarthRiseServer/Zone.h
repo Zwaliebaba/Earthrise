@@ -12,6 +12,9 @@
 #include "DockingSystem.h"
 #include "NpcAI.h"
 #include "FleetSystem.h"
+#include "MiningSystem.h"
+#include "RegrowthSystem.h"
+#include "GameTypes/AsteroidCluster.h"
 
 namespace EarthRise
 {
@@ -38,8 +41,17 @@ namespace EarthRise
     [[nodiscard]] GameLogic::DockingSystem&      GetDocking() noexcept { return m_docking; }
     [[nodiscard]] GameLogic::NpcAI&              GetNpcAI() noexcept { return m_npcAI; }
     [[nodiscard]] GameLogic::FleetSystem&        GetFleets() noexcept { return m_fleets; }
+    [[nodiscard]] GameLogic::MiningSystem&       GetMining() noexcept { return m_mining; }
+    [[nodiscard]] GameLogic::RegrowthSystem&     GetRegrowth() noexcept { return m_regrowth; }
 
     [[nodiscard]] uint32_t TickCount() const noexcept { return m_tickCount; }
+
+    // Universe data.
+    void SetUniverseSeed(uint64_t _seed) noexcept { m_universeSeed = _seed; }
+    [[nodiscard]] uint64_t GetUniverseSeed() const noexcept { return m_universeSeed; }
+    void SetClusters(std::vector<Neuron::AsteroidCluster>&& _clusters);
+    [[nodiscard]] const std::vector<Neuron::AsteroidCluster>& GetClusters() const noexcept { return m_clusters; }
+    [[nodiscard]] std::vector<Neuron::AsteroidCluster>& GetClusters() noexcept { return m_clusters; }
 
     // Zone dimensions.
     static constexpr float ZONE_SIZE = 100000.0f; // 100 km
@@ -58,6 +70,12 @@ namespace EarthRise
     GameLogic::DockingSystem      m_docking;
     GameLogic::NpcAI              m_npcAI;
     GameLogic::FleetSystem        m_fleets;
+    GameLogic::MiningSystem       m_mining;
+    GameLogic::RegrowthSystem     m_regrowth;
+
+    // Universe data (owned by Zone, populated by ZoneLoader::LoadUniverse).
+    std::vector<Neuron::AsteroidCluster> m_clusters;
+    uint64_t m_universeSeed = 0;
 
     uint32_t m_tickCount = 0;
   };

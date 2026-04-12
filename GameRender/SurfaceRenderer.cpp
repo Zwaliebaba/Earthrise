@@ -276,20 +276,19 @@ XMFLOAT4 SurfaceRenderer::GetLandscapeColour(float height, float gradient,
                                               const LandscapeTexture* texture,
                                               float highest)
 {
-  float heightAboveSea = height;
+  // U: steepness — use abs(gradient) so both hemispheres map symmetrically.
+  // |gradient| = 1 at poles (flat), 0 at equator (steep).
+  float u = powf(1.0f - fabsf(gradient), 0.4f);
 
-  // U: steepness (0 = flat, 1 = vertical cliff)
-  float u = powf(1.0f - gradient, 0.4f);
-
-  // V: normalized height (0 = peak, 1 = sea level)
-  float v = 1.0f - heightAboveSea / highest;
+  // V: normalized height mapped to full sphere range [-highest, +highest] → [0, 1].
+  // Maps top (height = highest) to v = 0 (peak), bottom (height = -highest) to v = 1.
+  float v = (1.0f - height / highest) * 0.5f;
 
   // Darwinia-style deterministic noise from spatial position
   SeedRandom(x | y + Random());
 
-  if (heightAboveSea < 0.0f)
-    heightAboveSea = 0.0f;
-  v += SignedFrand(0.45f / (heightAboveSea + 2.0f));
+  float absHeight = fabsf(height);
+  v += SignedFrand(0.45f / (absHeight + 2.0f));
 
   // Map UV to pixel coordinates with clamping
   int px = static_cast<int>(u * texture->GetWidth());

@@ -126,6 +126,29 @@ namespace GameLogic
         m_turretDefs.push_back(std::move(def));
         break;
       }
+      case SpaceObjectCategory::Planet:
+      {
+        PlanetDef def;
+        ReadBaseDef(reader, def);
+        def.MinOrbitRadius   = reader.Read<float>();
+        def.MaxOrbitRadius   = reader.Read<float>();
+        def.MinRotationSpeed = reader.Read<float>();
+        def.MaxRotationSpeed = reader.Read<float>();
+        def.Surface          = reader.Read<Neuron::SurfaceType>();
+        m_planetDefs.push_back(std::move(def));
+        break;
+      }
+      case SpaceObjectCategory::Sun:
+      {
+        SunDef def;
+        ReadBaseDef(reader, def);
+        def.MinLuminosity   = reader.Read<float>();
+        def.MaxLuminosity   = reader.Read<float>();
+        def.MinVisualRadius = reader.Read<float>();
+        def.MaxVisualRadius = reader.Read<float>();
+        m_sunDefs.push_back(std::move(def));
+        break;
+      }
       default:
       {
         // Skip unknown categories by reading base def and discarding
@@ -162,6 +185,8 @@ namespace GameLogic
     if (auto* p = searchIn(m_projectileDefs))  return p;
     if (auto* p = searchIn(m_stationDefs))     return p;
     if (auto* p = searchIn(m_turretDefs))      return p;
+    if (auto* p = searchIn(m_planetDefs))      return p;
+    if (auto* p = searchIn(m_sunDefs))         return p;
 
     return nullptr;
   }

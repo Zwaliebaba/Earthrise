@@ -16,6 +16,7 @@ add_library(EarthRiseTests SHARED
     UITests.cpp
     AudioEffectsTests.cpp
     ServerInfraTests.cpp
+    UniverseTests.cpp
     # GameLogic sources needed by tests, compiled with dynamic CRT
     ${CMAKE_SOURCE_DIR}/GameLogic/EntityPool.cpp
     ${CMAKE_SOURCE_DIR}/GameLogic/SpaceObjectManager.cpp
@@ -30,6 +31,11 @@ add_library(EarthRiseTests SHARED
     ${CMAKE_SOURCE_DIR}/GameLogic/DockingSystem.cpp
     ${CMAKE_SOURCE_DIR}/GameLogic/NpcAI.cpp
     ${CMAKE_SOURCE_DIR}/GameLogic/FleetSystem.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/MiningSystem.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/RegrowthSystem.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/UniverseGenerator.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/UniversePersistence.cpp
+    ${CMAKE_SOURCE_DIR}/GameLogic/ObjectDefsLoader.cpp
     # GameRender sources needed by tests (CPU-only code, no GPU)
     ${CMAKE_SOURCE_DIR}/GameRender/CmoLoader.cpp
     # NeuronCore sources needed by tests

@@ -52,5 +52,9 @@ namespace EarthRise
     float m_tickRate  = TICK_RATE;
     float m_tickDelta = TICK_DELTA;
     bool  m_running   = false;
+
+    // Universe persistence.
+    double m_lastDeltaSaveTime = 0.0;
+    void SaveUniverseDelta();
   };
 }

@@ -14,10 +14,24 @@ namespace EarthRise
     , m_docking(m_entityManager)
     , m_npcAI(m_entityManager, m_movement, m_combat)
     , m_fleets(m_entityManager, m_movement)
+    , m_mining(m_entityManager)
+    , m_regrowth(m_entityManager, m_clusters)
   {
     // Wire up optional system references for CommandProcessor dispatch.
     m_commands.SetCombatSystem(&m_combat);
     m_commands.SetDockingSystem(&m_docking);
+  }
+
+  void Zone::SetClusters(std::vector<Neuron::AsteroidCluster>&& _clusters)
+  {
+    m_clusters = std::move(_clusters);
+
+    // Initialize active counts.
+    for (auto& cluster : m_clusters)
+      cluster.ActiveCount = cluster.AsteroidCount;
+
+    // Seed the regrowth system.
+    m_regrowth.Seed(m_universeSeed);
   }
 
   void Zone::Tick(float _deltaTime)
@@ -47,16 +61,26 @@ namespace EarthRise
     const auto& collisions = m_collision.GetCollisions();
     m_combat.ProcessCollisions(collisions);
 
-    // 9. Despawn hit + expired projectiles
-    m_projectiles.DespawnProjectiles(m_combat.GetProjectileHits());
+    // 9. Process mining collisions (projectile-asteroid hits, resource extraction)
+    m_mining.ProcessCollisions(collisions);
 
-    // 10. Process loot collisions (ship-crate)
+    // 10. Despawn hit + expired projectiles (combat hits + mining hits)
+    auto allHits = m_combat.GetProjectileHits();
+    const auto& miningHits = m_mining.GetMiningHits();
+    allHits.insert(allHits.end(), miningHits.begin(), miningHits.end());
+    m_projectiles.DespawnProjectiles(allHits);
+
+    // 11. Process loot collisions (ship-crate)
     m_loot.ProcessCollisions(collisions);
 
-    // 11. Process docking collisions (ship-station)
+    // 12. Process docking collisions (ship-station)
     m_docking.ProcessCollisions(collisions);
 
-    // 12. Handle destroyed ships — remove from fleets, spawn crates
+    // 13. Enqueue mining depletions and tick regrowth
+    m_regrowth.EnqueueDepletions(m_mining);
+    m_regrowth.Update(_deltaTime);
+
+    // 14. Handle destroyed ships — remove from fleets, spawn crates
     for (const auto& destroyed : m_combat.GetDestroyedShips())
     {
       m_npcAI.UnregisterNpc(destroyed.Destroyed);
@@ -79,7 +103,7 @@ namespace EarthRise
       }
     }
 
-    // 13. Process jumpgate warps
+    // 15. Process jumpgate warps
     m_jumpgates.Update();
 
     ++m_tickCount;

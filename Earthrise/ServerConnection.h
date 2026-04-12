@@ -54,6 +54,10 @@ public:
 
 private:
   void NetworkThread();
+  void RetryLogin(double _now);
+
+  // Retry interval for re-sending login request when the server is unreachable.
+  static constexpr double RETRY_INTERVAL = 3.0;
 
   std::atomic<State>   m_state{ State::Disconnected };
   std::atomic<bool>    m_running{ false };
@@ -72,6 +76,9 @@ private:
 
   // Mutex-protected send operations (main thread calls Send while net thread resends).
   std::mutex           m_sendMutex;
+
+  // Login retry timer (network thread only).
+  double               m_nextRetryTime = 0.0;
 
   // Shared buffers
   std::array<uint8_t, Neuron::DATALOAD_SIZE> m_sendBuffer{};

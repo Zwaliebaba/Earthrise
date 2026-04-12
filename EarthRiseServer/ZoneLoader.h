@@ -2,6 +2,7 @@
 
 #include "Zone.h"
 #include "SerializationBase.h"
+#include "GameTypes/AsteroidCluster.h"
 
 namespace EarthRise
 {
@@ -20,5 +21,10 @@ namespace EarthRise
 
     // Create a default test zone with hardcoded entities for development/testing.
     static void CreateTestZone(Zone& _zone);
+
+    // Generate universe from seed and populate the zone with celestial bodies and asteroids.
+    // Optionally applies delta state from a persistence file.
+    static bool LoadUniverse(Zone& _zone, uint64_t _seed,
+      const std::wstring& _deltaFilePath = L"");
   };
 }
