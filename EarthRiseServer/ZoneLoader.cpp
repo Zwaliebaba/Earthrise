@@ -64,6 +64,7 @@ namespace EarthRise
     auto& mgr = _zone.GetEntityManager();
 
     // Spawn some test asteroids
+    Neuron::NeuronRandom rng(42);
     for (int i = 0; i < 20; ++i)
     {
       float x = static_cast<float>(i * 8 - 80);
@@ -76,6 +77,11 @@ namespace EarthRise
         obj->BoundingRadius = 1.2f;
         obj->Color = { 0.6f, 0.5f, 0.2f, 1.0f };
         obj->Surface = static_cast<Neuron::SurfaceType>(i % static_cast<int>(Neuron::SurfaceType::COUNT));
+      }
+      if (auto* ad = mgr.GetAsteroidData(h))
+      {
+        ad->RotationSpeed = rng.FloatRange(0.05f, 0.5f);
+        ad->RotationAxis = rng.UnitSphere();
       }
     }
 

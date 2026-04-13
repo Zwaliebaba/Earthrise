@@ -19,7 +19,8 @@ namespace Neuron::Graphics
       const Camera& _camera,
       FXMVECTOR _rebasedPosition,
       float _visualRadius,
-      FXMVECTOR _color);
+      GXMVECTOR _color,
+      float _gameTime);
 
   private:
     struct alignas(256) BillboardConstants
@@ -36,8 +37,15 @@ namespace Neuron::Graphics
 
     com_ptr<ID3D12PipelineState> m_pso;
     com_ptr<ID3D12RootSignature> m_rootSignature;
-    com_ptr<ID3D12Resource>      m_glowTexture;
-    D3D12_CPU_DESCRIPTOR_HANDLE  m_glowSRV_CPU{};
-    D3D12_GPU_DESCRIPTOR_HANDLE  m_glowSRV_GPU{};  // Persistent slot in shader-visible heap
+
+    com_ptr<ID3D12Resource>      m_cloudyGlowTexture;
+    D3D12_CPU_DESCRIPTOR_HANDLE  m_cloudyGlowSRV_CPU{};
+    D3D12_GPU_DESCRIPTOR_HANDLE  m_cloudyGlowSRV_GPU{};
+
+    com_ptr<ID3D12Resource>      m_starburstTexture;
+    D3D12_CPU_DESCRIPTOR_HANDLE  m_starburstSRV_CPU{};
+    D3D12_GPU_DESCRIPTOR_HANDLE  m_starburstSRV_GPU{};
+
+    float m_fadeTimer{0.0f};
   };
 }

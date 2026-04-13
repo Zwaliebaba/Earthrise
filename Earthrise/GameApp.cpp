@@ -402,7 +402,33 @@ void GameApp::RenderWorldEntities(ID3D12GraphicsCommandList* _cmdList)
   float nearestDist = 99999.0f;
   XMVECTOR camPos = m_camera.GetPosition();
 
-  // Pass 1: Non-asteroid, non-planet, non-sun entities (flat-color pipeline)
+  // Pass 1: Sun billboard (camera-locked, additive blended, no depth write)
+  // Rendered first so that opaque geometry (planets, asteroids) writes depth on top.
+  constexpr float SUN_LOCK_DISTANCE = 19500.0f;
+  constexpr float SUN_VISUAL_RADIUS = 2400.0f;
+  m_worldState.ForEachActive([&](const ClientEntity& entity)
+  {
+    if (entity.Category != SpaceObjectCategory::Sun)
+      return;
+
+    XMVECTOR entPos = XMLoadFloat3(&entity.Position);
+    XMVECTOR diff = XMVectorSubtract(entPos, camPos);
+    float realDist = XMVectorGetX(XMVector3Length(diff));
+    if (realDist < 1.0f)
+      return;
+    XMVECTOR dir = XMVectorScale(diff, 1.0f / realDist);
+    XMVECTOR lockedPos = XMVectorScale(dir, SUN_LOCK_DISTANCE);
+
+    if (!m_camera.IsVisible(lockedPos, SUN_VISUAL_RADIUS))
+      return;
+
+    XMVECTOR sunColor = XMLoadFloat4(&entity.Color);
+    float gameTime = static_cast<float>(Neuron::Timer::Core::GetTotalSeconds());
+    m_sunBillboard.Render(_cmdList, m_cbAlloc, m_srvHeap, m_camera, lockedPos, SUN_VISUAL_RADIUS, sunColor, gameTime);
+    ++renderedCount;
+  });
+
+  // Pass 2: Non-asteroid, non-planet, non-sun entities (flat-color pipeline)
   m_objectRenderer.BeginFrame(_cmdList, m_cbAlloc, m_camera);
   m_worldState.ForEachActive([&](const ClientEntity& entity)
   {
@@ -522,42 +548,6 @@ void GameApp::RenderWorldEntities(ID3D12GraphicsCommandList* _cmdList)
     m_surfaceRenderer.RenderObject(_cmdList, m_cbAlloc, surfMesh, world);
     ++renderedCount;
   });
-
-  // Pass 3: Sun billboard (camera-locked, additive blended)
-  constexpr float SUN_LOCK_DISTANCE = 19000.0f;
-  constexpr float SUN_VISUAL_RADIUS = 2400.0f;
-  m_worldState.ForEachActive([&](const ClientEntity& entity)
-  {
-    if (entity.Category != SpaceObjectCategory::Sun)
-      return;
-
-    XMVECTOR entPos = XMLoadFloat3(&entity.Position);
-    XMVECTOR diff = XMVectorSubtract(entPos, camPos);
-    float realDist = XMVectorGetX(XMVector3Length(diff));
-    if (realDist < 1.0f)
-      return;
-    XMVECTOR dir = XMVectorScale(diff, 1.0f / realDist);
-    XMVECTOR lockedPos = XMVectorScale(dir, SUN_LOCK_DISTANCE);
-
-    if (!m_camera.IsVisible(lockedPos, SUN_VISUAL_RADIUS))
-      return;
-
-    XMVECTOR sunColor = XMLoadFloat4(&entity.Color);
-    m_sunBillboard.Render(_cmdList, m_cbAlloc, m_srvHeap, m_camera, lockedPos, SUN_VISUAL_RADIUS, sunColor);
-    ++renderedCount;
-  });
-
-#if defined(_DEBUG)
-  // Show render stats in window title for diagnostics
-  {
-    XMFLOAT3 cp;
-    XMStoreFloat3(&cp, camPos);
-    char buf[512];
-    sprintf_s(buf, "DSO — ent:%d key:%d mesh:%d draw:%d near:%.0f cam:(%.0f,%.0f,%.0f) meshes:%zu", totalCount, noKeyCount, noMeshCount,
-              renderedCount, nearestDist, cp.x, cp.y, cp.z, m_meshCache.GetCacheSize());
-    SetWindowTextA(ClientEngine::Window(), buf);
-  }
-#endif
 }
 
 void GameApp::RenderCanvas()

@@ -30,6 +30,15 @@ namespace EarthRise
       spawn.Color       = _obj.Color;
       spawn.Surface     = _obj.Surface;
 
+      if (_obj.Category == Neuron::SpaceObjectCategory::Asteroid)
+      {
+        if (auto* ad = m_zone.GetEntityManager().GetAsteroidData(_obj.Handle))
+        {
+          spawn.RotationSpeed = ad->RotationSpeed;
+          spawn.RotationAxis  = ad->RotationAxis;
+        }
+      }
+
       Neuron::DataWriter writer;
       spawn.Write(writer);
 

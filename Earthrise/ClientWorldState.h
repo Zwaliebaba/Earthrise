@@ -51,6 +51,10 @@ struct ClientEntity
 
   // Surface coloring for asteroids/planets (landscape texture type)
   Neuron::SurfaceType SurfaceType = Neuron::SurfaceType::Default;
+
+  // Asteroid rotation (applied locally on client every frame)
+  float    RotationSpeed = 0.0f;
+  XMFLOAT3 RotationAxis  = { 0, 1, 0 };
 };
 
 class ClientWorldState

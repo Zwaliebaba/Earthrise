@@ -16,6 +16,8 @@ void ClientWorldState::ApplySpawn(const EntitySpawnMsg& _msg)
   entity.Color            = _msg.Color;
   entity.Velocity         = {};
   entity.SurfaceType      = _msg.Surface;
+  entity.RotationSpeed     = _msg.RotationSpeed;
+  entity.RotationAxis      = _msg.RotationAxis;
 
   // Initialize interpolation state to current position (no lerp jitter on first frame)
   entity.PrevPosition      = _msg.Position;
@@ -102,11 +104,23 @@ void ClientWorldState::Update(float _deltaT)
 
     XMStoreFloat3(&entity.Position, interpPos);
 
-    // Slerp orientation
-    XMVECTOR prevOri = XMLoadFloat4(&entity.PrevOrientation);
-    XMVECTOR targetOri = XMLoadFloat4(&entity.TargetOrientation);
-    XMVECTOR interpOri = XMQuaternionSlerp(prevOri, targetOri, t);
-    XMStoreFloat4(&entity.Orientation, interpOri);
+    // Orientation: asteroids rotate locally; everything else slerps server snapshots.
+    if (entity.Category == Neuron::SpaceObjectCategory::Asteroid && entity.RotationSpeed != 0.0f)
+    {
+      float angle = entity.RotationSpeed * _deltaT;
+      XMVECTOR axis = XMLoadFloat3(&entity.RotationAxis);
+      XMVECTOR delta = XMQuaternionRotationAxis(axis, angle);
+      XMVECTOR current = XMLoadFloat4(&entity.Orientation);
+      XMVECTOR result = XMQuaternionNormalize(XMQuaternionMultiply(current, delta));
+      XMStoreFloat4(&entity.Orientation, result);
+    }
+    else
+    {
+      XMVECTOR prevOri = XMLoadFloat4(&entity.PrevOrientation);
+      XMVECTOR targetOri = XMLoadFloat4(&entity.TargetOrientation);
+      XMVECTOR interpOri = XMQuaternionSlerp(prevOri, targetOri, t);
+      XMStoreFloat4(&entity.Orientation, interpOri);
+    }
   }
 }
 
