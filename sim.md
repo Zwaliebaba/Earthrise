@@ -100,19 +100,13 @@ if (m_currentIndex + count > m_descriptorsPerFrame)
 
 Every renderer:
 
-- Embeds its HLSL as a C++ string literal (several hundred lines per file).
-- Calls `D3DCompile` at runtime during `Initialize()`.
 - Defines a private `ID3D12RootSignature` that is structurally `{ b0 frame CBV, [b1 draw CBV], [table: t0, optional t1] }` — almost identical across renderers.
 - Hand-rolls a `D3D12_GRAPHICS_PIPELINE_STATE_DESC` with 95% identical fields (reverse-Z, `GREATER_EQUAL`, back-buffer format, sample mask, etc.).
 
 **Recommendations:**
 
 1. **One shared root signature** (`CommonRootSig`) with slots `{ b0, b1, table(t0..t1) }` and a static sampler. All non-post-process renderers can use it; PSOs still swap input layouts, blend state, and shaders. This alone removes ~40 lines from each of the 7 renderers that define their own.
-2. **Offline shader compilation.** Move the HLSL out of `.cpp`, compile to `.cso` at build time via `dxc`/`fxc`, embed with `CMake`’s `file(TO_C_HEADER)` or load from disk. Benefits:
-   - Build-time validation (runtime compile errors become compile-time errors).
-   - ~100 fewer lines in every pipeline `.cpp`.
-   - Faster startup (no DXC spin-up for every PSO).
-3. **PSO factory / builder.** A single `PsoBuilder` struct with fluent setters (`.WithVS(...).WithPS(...).WithInputLayout(...).WithBlend(Additive).WithDepth(ReverseZ)`) replaces every renderer’s `CreatePipelineState` boilerplate.
+2. **PSO factory / builder.** A single `PsoBuilder` struct with fluent setters (`.WithVS(...).WithPS(...).WithInputLayout(...).WithBlend(Additive).WithDepth(ReverseZ)`) replaces every renderer’s `CreatePipelineState` boilerplate.
 
 Estimated reduction: ~1 000–1 400 lines across the 8 pipeline files (~35–40% of the pipeline code).
 
