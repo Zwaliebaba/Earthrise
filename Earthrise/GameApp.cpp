@@ -36,6 +36,9 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
   using namespace Neuron::Graphics;
   using namespace Neuron;
 
+  // Register for device-removal notifications so a TDR doesn't leave stale GPU handles
+  ClientEngine::RegisterDeviceNotify(this);
+
   const UINT backBufferCount = Core::GetBackBufferCount();
 
   // GPU infrastructure — 4 MB per frame for constant buffers and dynamic vertex data
@@ -43,8 +46,8 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
   m_uploadHeap.Create(UPLOAD_HEAP_PER_FRAME, backBufferCount);
   m_cbAlloc.Initialize(&m_uploadHeap);
 
-  // Shader-visible descriptor heap — 256 descriptors per frame for SRV bindings
-  m_srvHeap.Create(256, backBufferCount);
+  // Shader-visible descriptor heap — 1024 descriptors per frame for SRV bindings
+  m_srvHeap.Create(1024, backBufferCount);
 
   // Camera
   auto outputSize = Core::GetOutputSize();
@@ -60,7 +63,7 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
   m_surfaceRenderer.Initialize();
   m_starfield.Initialize();
   m_postProcess.Initialize(static_cast<UINT>(width), static_cast<UINT>(height));
-  m_sunBillboard.Initialize();
+  m_sunBillboard.Initialize(m_srvHeap);
   m_tacticalGrid.Initialize();
   m_spriteBatch.Initialize();
 
@@ -73,23 +76,28 @@ Windows::Foundation::IAsyncAction GameApp::Startup()
     std::wstring editorPath = L"Fonts\\EditorFont-" + langW + L".dds";
     std::wstring speccyPath = L"Fonts\\SpeccyFont-" + langW + L".dds";
 
-    m_editorFont.LoadFromFile(editorPath);
+    m_editorFont.LoadFromFile(editorPath, m_srvHeap);
     if (!m_editorFont.IsLoaded())
     {
       // Fallback to English if the detected language isn't available
-      m_editorFont.LoadFromFile(L"Fonts\\EditorFont-ENG.dds");
+      m_editorFont.LoadFromFile(L"Fonts\\EditorFont-ENG.dds", m_srvHeap);
     }
 
-    m_speccyFont.LoadFromFile(speccyPath);
+    m_speccyFont.LoadFromFile(speccyPath, m_srvHeap);
     if (!m_speccyFont.IsLoaded())
     {
-      m_speccyFont.LoadFromFile(L"Fonts\\SpeccyFont-ENG.dds");
+      m_speccyFont.LoadFromFile(L"Fonts\\SpeccyFont-ENG.dds", m_srvHeap);
     }
   }
 
   // Preload all mesh categories for fast lookup
   for (auto cat = SpaceObjectCategory::SpaceObject; cat < SpaceObjectCategory::COUNT; ++cat)
     m_meshCache.PreloadCategory(cat);
+
+  // Eagerly build all (meshKey × surfaceType) surface meshes for asteroids and planets
+  // so GetSurfaceMesh never triggers a blocking GPU upload mid-frame (§2.2 Option C).
+  m_surfaceRenderer.PreloadAllSurfaces("Asteroids");
+  m_surfaceRenderer.PreloadAllSurfaces("Planets");
 
   // Log the bounds of the first asteroid mesh for scale diagnostics
   if (auto* mesh = m_meshCache.GetMesh("Asteroids\\Asteroid01"))
@@ -143,6 +151,30 @@ void GameApp::Shutdown()
   m_uploadHeap.Destroy();
   m_srvHeap.Destroy();
   m_initialized = false;
+}
+
+void GameApp::OnDeviceLost()
+{
+  // Log the device-removed reason for diagnostics.
+  auto* device = Graphics::Core::GetD3DDevice();
+  if (device)
+  {
+    HRESULT reason = device->GetDeviceRemovedReason();
+    Neuron::Fatal("GPU device removed (HRESULT 0x{:08X}). "
+                  "The application will exit. Restart to recover.",
+                  static_cast<unsigned>(reason));
+  }
+  else
+  {
+    Neuron::Fatal("GPU device removed (device already null). "
+                  "The application will exit.");
+  }
+}
+
+void GameApp::OnDeviceRestored()
+{
+  // Currently unreachable — OnDeviceLost calls Fatal which terminates.
+  // When full device recreation is implemented, reinitialize all renderers here.
 }
 
 void GameApp::OnWindowSizeChanged(int width, int height)
@@ -344,7 +376,7 @@ void GameApp::RenderScene()
   RenderWorldEntities(cmdList);
 
   // Render particles (Phase 9)
-  m_particleRenderer.Render(cmdList, m_cbAlloc, m_camera, m_particleSystem);
+  m_particleRenderer.Render(cmdList, m_uploadHeap, m_cbAlloc, m_srvHeap, m_camera, m_particleSystem);
 
   // Bloom (additive composite — sun glow on LDR back buffer)
   m_postProcess.ApplyBloomAdditive(cmdList, m_cbAlloc, m_srvHeap, Core::GetRenderTarget(), 0.65f);

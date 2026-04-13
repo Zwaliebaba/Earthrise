@@ -32,34 +32,15 @@ void TacticalGrid::Initialize()
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
   };
 
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-  psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
-  psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { g_pGridVS, sizeof(g_pGridVS) };
-  psoDesc.PS = { g_pGridPS, sizeof(g_pGridPS) };
-  psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-
-  // Alpha blending for distance fade
-  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-  psoDesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-  psoDesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-  psoDesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-  psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-  psoDesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-  psoDesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-  psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-
-  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-  psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-  psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO; // Transparent, no depth write
-  psoDesc.SampleMask = UINT_MAX;
-  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
-  psoDesc.NumRenderTargets = 1;
-  psoDesc.RTVFormats[0] = Core::GetBackBufferFormat();
-  psoDesc.DSVFormat = Core::GetDepthBufferFormat();
-  psoDesc.SampleDesc.Count = 1;
-
-  m_pso = PipelineHelpers::CreateGraphicsPSO(psoDesc);
+  m_pso = PsoBuilder()
+    .WithRootSignature(m_rootSignature.get())
+    .WithVS(g_pGridVS, sizeof(g_pGridVS))
+    .WithPS(g_pGridPS, sizeof(g_pGridPS))
+    .WithInputLayout(inputLayout, _countof(inputLayout))
+    .AlphaBlend()
+    .DepthReadOnly()
+    .Topology(D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE)
+    .Build();
   SetName(m_pso.get(), L"GridPSO");
 
   // Generate grid lines (200m spacing, 2000m extent)

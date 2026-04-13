@@ -38,6 +38,10 @@ namespace Neuron::Graphics
     D3D12_CPU_DESCRIPTOR_HANDLE m_brightPassRTV{};
     D3D12_CPU_DESCRIPTOR_HANDLE m_blurRTV[2]{};
 
+    // CPU-side SRV descriptors for bloom RTs (created once per resize, copied per-frame)
+    D3D12_CPU_DESCRIPTOR_HANDLE m_brightPassSRV_CPU{};
+    D3D12_CPU_DESCRIPTOR_HANDLE m_blurSRV_CPU[2]{};
+
     com_ptr<ID3D12RootSignature> m_rootSignature;
     com_ptr<ID3D12PipelineState> m_extractPSO;
     com_ptr<ID3D12PipelineState> m_blurPSO;

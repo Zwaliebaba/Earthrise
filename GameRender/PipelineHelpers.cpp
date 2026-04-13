@@ -1,41 +1,7 @@
 #include "pch.h"
 #include "PipelineHelpers.h"
 
-#include <d3dcompiler.h>
-#pragma comment(lib, "d3dcompiler.lib")
-
 using namespace Neuron::Graphics;
-
-com_ptr<ID3DBlob> PipelineHelpers::CompileShader(
-  const char* source, size_t sourceSize,
-  const char* entryPoint, const char* target,
-  const char* debugName)
-{
-  UINT compileFlags = 0;
-#if defined(_DEBUG)
-  compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-  compileFlags = D3DCOMPILE_OPTIMIZATION_LEVEL3;
-#endif
-
-  com_ptr<ID3DBlob> byteCode;
-  com_ptr<ID3DBlob> errors;
-
-  HRESULT hr = D3DCompile(source, sourceSize, debugName, nullptr, nullptr,
-    entryPoint, target, compileFlags, 0, byteCode.put(), errors.put());
-
-  if (FAILED(hr))
-  {
-    if (errors)
-    {
-      Neuron::Fatal("Shader compilation failed: {}",
-        static_cast<const char*>(errors->GetBufferPointer()));
-    }
-    check_hresult(hr);
-  }
-
-  return byteCode;
-}
 
 com_ptr<ID3D12RootSignature> PipelineHelpers::CreateRootSignature(
   const D3D12_ROOT_SIGNATURE_DESC& desc)
@@ -43,8 +9,18 @@ com_ptr<ID3D12RootSignature> PipelineHelpers::CreateRootSignature(
   com_ptr<ID3DBlob> serialized;
   com_ptr<ID3DBlob> errors;
 
-  HRESULT hr = D3D12SerializeRootSignature(&desc,
-    D3D_ROOT_SIGNATURE_VERSION_1, serialized.put(), errors.put());
+  // Wrap the 1.0 desc in a versioned container.  Keep Version as 1_0 so
+  // D3D12SerializeVersionedRootSignature performs the lossless 1.0 → 1.1
+  // promotion internally.  Setting Version to 1_1 here would be wrong
+  // because the union's Desc_1_1 (D3D12_ROOT_PARAMETER1) has a Flags
+  // field that doesn't exist in the 1.0 layout, leading to reads of
+  // uninitialized memory.
+  D3D12_VERSIONED_ROOT_SIGNATURE_DESC versionedDesc = {};
+  versionedDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_0;
+  versionedDesc.Desc_1_0 = desc;
+
+  HRESULT hr = D3D12SerializeVersionedRootSignature(&versionedDesc,
+    serialized.put(), errors.put());
 
   if (FAILED(hr))
   {

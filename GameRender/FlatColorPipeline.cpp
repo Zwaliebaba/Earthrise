@@ -26,28 +26,14 @@ void FlatColorPipeline::Initialize()
     { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(XMFLOAT3),     D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
   };
 
-  // PSO
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-  psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
-  psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { g_pFlatColorVS, sizeof(g_pFlatColorVS) };
-  psoDesc.PS = { g_pFlatColorPS, sizeof(g_pFlatColorPS) };
-  psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-  psoDesc.RasterizerState.FrontCounterClockwise = TRUE; // CMO meshes use CCW winding
-  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-
-  // Reverse-Z depth: GREATER_EQUAL comparison, depth write enabled
-  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-  psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-
-  psoDesc.SampleMask = UINT_MAX;
-  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-  psoDesc.NumRenderTargets = 1;
-  psoDesc.RTVFormats[0] = Core::GetBackBufferFormat();
-  psoDesc.DSVFormat = Core::GetDepthBufferFormat();
-  psoDesc.SampleDesc.Count = 1;
-
-  m_pso = PipelineHelpers::CreateGraphicsPSO(psoDesc);
+  m_pso = PsoBuilder()
+    .WithRootSignature(m_rootSignature.get())
+    .WithVS(g_pFlatColorVS, sizeof(g_pFlatColorVS))
+    .WithPS(g_pFlatColorPS, sizeof(g_pFlatColorPS))
+    .WithInputLayout(inputLayout, _countof(inputLayout))
+    .FrontCCW()
+    .DepthReverseZ()
+    .Build();
   SetName(m_pso.get(), L"FlatColorPSO");
 }
 

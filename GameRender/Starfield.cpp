@@ -60,24 +60,14 @@ void Starfield::Initialize(uint32_t starCount)
   };
 
   // PSO — render as points, reverse-Z depth, no depth write (background)
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-  psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
-  psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { g_pStarfieldVS, sizeof(g_pStarfieldVS) };
-  psoDesc.PS = { g_pStarfieldPS, sizeof(g_pStarfieldPS) };
-  psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-  psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-  psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO; // Don't write depth for background
-  psoDesc.SampleMask = UINT_MAX;
-  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
-  psoDesc.NumRenderTargets = 1;
-  psoDesc.RTVFormats[0] = Core::GetBackBufferFormat();
-  psoDesc.DSVFormat = Core::GetDepthBufferFormat();
-  psoDesc.SampleDesc.Count = 1;
-
-  m_pso = PipelineHelpers::CreateGraphicsPSO(psoDesc);
+  m_pso = PsoBuilder()
+    .WithRootSignature(m_rootSignature.get())
+    .WithVS(g_pStarfieldVS, sizeof(g_pStarfieldVS))
+    .WithPS(g_pStarfieldPS, sizeof(g_pStarfieldPS))
+    .WithInputLayout(inputLayout, _countof(inputLayout))
+    .DepthReadOnly()
+    .Topology(D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT)
+    .Build();
   SetName(m_pso.get(), L"StarfieldPSO");
 }
 

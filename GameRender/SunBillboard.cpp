@@ -7,7 +7,7 @@
 
 using namespace Neuron::Graphics;
 
-void SunBillboard::Initialize()
+void SunBillboard::Initialize(ShaderVisibleHeap& _srvHeap)
 {
   // Load Glow.dds texture
   std::wstring texPath = FileSys::GetHomeDirectory();
@@ -21,7 +21,7 @@ void SunBillboard::Initialize()
 
   m_glowTexture = GpuResourceManager::CreateStaticTexture(image, L"GlowTexture");
 
-  // Non-shader-visible SRV for texture (we'll copy to shader-visible at render time)
+  // Non-shader-visible SRV for texture
   m_glowSRV_CPU = Core::AllocateDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
   D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
   srvDesc.Format = m_glowTexture->GetDesc().Format;
@@ -29,6 +29,14 @@ void SunBillboard::Initialize()
   srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
   srvDesc.Texture2D.MipLevels = 1;
   Core::GetD3DDevice()->CreateShaderResourceView(m_glowTexture.get(), &srvDesc, m_glowSRV_CPU);
+
+  // Allocate a persistent slot in the shader-visible heap and copy the SRV once.
+  auto persistentHandle = _srvHeap.AllocatePersistent(1);
+  Core::GetD3DDevice()->CopyDescriptorsSimple(1,
+    static_cast<D3D12_CPU_DESCRIPTOR_HANDLE>(persistentHandle),
+    m_glowSRV_CPU,
+    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  m_glowSRV_GPU = persistentHandle;
 
   // Root signature: b0 = CBV, t0 = SRV descriptor table, s0 = static sampler
   CD3DX12_ROOT_PARAMETER rootParams[2];
@@ -55,38 +63,14 @@ void SunBillboard::Initialize()
   m_rootSignature = PipelineHelpers::CreateRootSignature(rootSigDesc);
   SetName(m_rootSignature.get(), L"SunBillboardRootSig");
 
-  // PSO
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-  psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { g_pBillboardVS, sizeof(g_pBillboardVS) };
-  psoDesc.PS = { g_pBillboardPS, sizeof(g_pBillboardPS) };
-  psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-  psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-
-  // Alpha-modulated additive blending: src.a * src + dst
-  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-  psoDesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-  psoDesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-  psoDesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
-  psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-  psoDesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-  psoDesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
-  psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-  psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-
-  // Depth: test enabled (reverse-Z), write disabled (transparent effect)
-  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-  psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-  psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-
-  psoDesc.SampleMask = UINT_MAX;
-  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-  psoDesc.NumRenderTargets = 1;
-  psoDesc.RTVFormats[0] = Core::GetBackBufferFormat();
-  psoDesc.DSVFormat = Core::GetDepthBufferFormat();
-  psoDesc.SampleDesc.Count = 1;
-
-  m_pso = PipelineHelpers::CreateGraphicsPSO(psoDesc);
+  m_pso = PsoBuilder()
+    .WithRootSignature(m_rootSignature.get())
+    .WithVS(g_pBillboardVS, sizeof(g_pBillboardVS))
+    .WithPS(g_pBillboardPS, sizeof(g_pBillboardPS))
+    .NoCull()
+    .AdditiveBlend()
+    .DepthReadOnly()
+    .Build();
   SetName(m_pso.get(), L"SunBillboardPSO");
 }
 
@@ -112,21 +96,14 @@ void XM_CALLCONV SunBillboard::Render(
   auto alloc = _cbAlloc.Allocate<BillboardConstants>();
   memcpy(alloc.CpuAddress, &cb, sizeof(BillboardConstants));
 
-  // Copy SRV to shader-visible heap
-  auto srvHandle = _srvHeap.Allocate(1);
-  Core::GetD3DDevice()->CopyDescriptorsSimple(1,
-    static_cast<D3D12_CPU_DESCRIPTOR_HANDLE>(srvHandle),
-    m_glowSRV_CPU,
-    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-  // Bind the shader-visible descriptor heap before setting descriptor tables
+  // Bind the shader-visible descriptor heap
   ID3D12DescriptorHeap* heaps[] = { _srvHeap.GetHeap() };
   _cmdList->SetDescriptorHeaps(1, heaps);
 
   _cmdList->SetPipelineState(m_pso.get());
   _cmdList->SetGraphicsRootSignature(m_rootSignature.get());
   _cmdList->SetGraphicsRootConstantBufferView(0, alloc.GpuAddress);
-  _cmdList->SetGraphicsRootDescriptorTable(1, srvHandle);
+  _cmdList->SetGraphicsRootDescriptorTable(1, m_glowSRV_GPU);
   _cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   _cmdList->DrawInstanced(6, 1, 0, 0);
 }

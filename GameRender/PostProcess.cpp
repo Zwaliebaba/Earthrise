@@ -29,20 +29,13 @@ void PostProcess::Initialize(UINT width, UINT height)
   // Common PSO state (no depth, full-screen triangle, no input layout)
   auto makePSO = [&](const void* psBytecode, size_t psSize) -> com_ptr<ID3D12PipelineState>
   {
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
-    desc.pRootSignature = m_rootSignature.get();
-    desc.VS = { g_pFullscreenVS, sizeof(g_pFullscreenVS) };
-    desc.PS = { psBytecode, psSize };
-    desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-    desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    desc.DepthStencilState.DepthEnable = FALSE;
-    desc.SampleMask = UINT_MAX;
-    desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    desc.NumRenderTargets = 1;
-    desc.RTVFormats[0] = Core::GetBackBufferFormat();
-    desc.SampleDesc.Count = 1;
-    return PipelineHelpers::CreateGraphicsPSO(desc);
+    return PsoBuilder()
+      .WithRootSignature(m_rootSignature.get())
+      .WithVS(g_pFullscreenVS, sizeof(g_pFullscreenVS))
+      .WithPS(psBytecode, psSize)
+      .NoCull()
+      .NoDepth()
+      .Build();
   };
 
   m_extractPSO = makePSO(g_pBloomExtractPS, sizeof(g_pBloomExtractPS));
@@ -55,31 +48,15 @@ void PostProcess::Initialize(UINT width, UINT height)
   SetName(m_compositePSO.get(), L"BloomCompositePSO");
 
   // Additive composite PSO — same as composite but with additive blending, 1 SRV only
-  {
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
-    desc.pRootSignature = m_rootSignature.get();
-    desc.VS = { g_pFullscreenVS, sizeof(g_pFullscreenVS) };
-    desc.PS = { g_pBloomAdditivePS, sizeof(g_pBloomAdditivePS) };
-    desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-    desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    desc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-    desc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-    desc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
-    desc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-    desc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-    desc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
-    desc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-    desc.DepthStencilState.DepthEnable = FALSE;
-    desc.SampleMask = UINT_MAX;
-    desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    desc.NumRenderTargets = 1;
-    desc.RTVFormats[0] = Core::GetBackBufferFormat();
-    desc.SampleDesc.Count = 1;
-    m_compositeAdditivePSO = PipelineHelpers::CreateGraphicsPSO(desc);
-    SetName(m_compositeAdditivePSO.get(), L"BloomCompositeAdditivePSO");
-  }
+  m_compositeAdditivePSO = PsoBuilder()
+    .WithRootSignature(m_rootSignature.get())
+    .WithVS(g_pFullscreenVS, sizeof(g_pFullscreenVS))
+    .WithPS(g_pBloomAdditivePS, sizeof(g_pBloomAdditivePS))
+    .NoCull()
+    .PureAdditiveBlend()
+    .NoDepth()
+    .Build();
+  SetName(m_compositeAdditivePSO.get(), L"BloomCompositeAdditivePSO");
 
   CreateResources(width, height);
 }
@@ -129,6 +106,23 @@ void PostProcess::CreateResources(UINT width, UINT height)
     m_blurRTV[i] = Core::AllocateDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     Core::GetD3DDevice()->CreateRenderTargetView(m_blurRT[i].get(), nullptr, m_blurRTV[i]);
   }
+
+  // Create CPU-side SRVs for bloom RTs (copied to shader-visible heap per-frame)
+  auto createSRV = [device = Core::GetD3DDevice()](ID3D12Resource* resource) -> D3D12_CPU_DESCRIPTOR_HANDLE
+  {
+    auto handle = Core::AllocateDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.Format = Core::GetBackBufferFormat();
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Texture2D.MipLevels = 1;
+    device->CreateShaderResourceView(resource, &srvDesc, handle);
+    return handle;
+  };
+
+  m_brightPassSRV_CPU = createSRV(m_brightPassRT.get());
+  m_blurSRV_CPU[0] = createSRV(m_blurRT[0].get());
+  m_blurSRV_CPU[1] = createSRV(m_blurRT[1].get());
 }
 
 void PostProcess::ApplyBloom(ID3D12GraphicsCommandList* cmdList, ConstantBufferAllocator& cbAlloc, ShaderVisibleHeap& srvHeap,
@@ -146,8 +140,8 @@ void PostProcess::ApplyBloom(ID3D12GraphicsCommandList* cmdList, ConstantBufferA
 
   auto device = Core::GetD3DDevice();
 
-  // Helper: create SRV in shader-visible heap
-  auto makeSRV = [&](ID3D12Resource* resource) -> DescriptorHandle
+  // Helper: create SRV for the scene RT (back buffer, changes per frame)
+  auto makeSceneSRV = [&]() -> DescriptorHandle
   {
     auto handle = srvHeap.Allocate(1);
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -155,19 +149,29 @@ void PostProcess::ApplyBloom(ID3D12GraphicsCommandList* cmdList, ConstantBufferA
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Texture2D.MipLevels = 1;
-    device->CreateShaderResourceView(resource, &srvDesc, handle);
+    device->CreateShaderResourceView(sceneRT, &srvDesc, handle);
+    return handle;
+  };
+
+  // Helper: copy a cached CPU-side SRV into the shader-visible heap
+  auto copySRV = [&](D3D12_CPU_DESCRIPTOR_HANDLE cpuSRV) -> DescriptorHandle
+  {
+    auto handle = srvHeap.Allocate(1);
+    device->CopyDescriptorsSimple(1,
+      static_cast<D3D12_CPU_DESCRIPTOR_HANDLE>(handle), cpuSRV,
+      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     return handle;
   };
 
   // ── Pass 1: Bright-pass extract ──────────────────────────────────────
   {
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    cmdList->ResourceBarrier(1, &barrier);
-
-    auto barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(m_brightPassRT.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-                                                         D3D12_RESOURCE_STATE_RENDER_TARGET);
-    cmdList->ResourceBarrier(1, &barrier2);
+    D3D12_RESOURCE_BARRIER barriers[] = {
+      CD3DX12_RESOURCE_BARRIER::Transition(sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+      CD3DX12_RESOURCE_BARRIER::Transition(m_brightPassRT.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                                           D3D12_RESOURCE_STATE_RENDER_TARGET),
+    };
+    cmdList->ResourceBarrier(_countof(barriers), barriers);
 
     struct
     {
@@ -177,7 +181,7 @@ void PostProcess::ApplyBloom(ID3D12GraphicsCommandList* cmdList, ConstantBufferA
     auto cb = cbAlloc.Allocate(sizeof(data));
     memcpy(cb.CpuAddress, &data, sizeof(data));
 
-    auto sceneSRV = makeSRV(sceneRT);
+    auto sceneSRV = makeSceneSRV();
 
     D3D12_VIEWPORT vp = {0, 0, static_cast<float>(bloomW), static_cast<float>(bloomH), 0, 1};
     D3D12_RECT scissor = {0, 0, static_cast<LONG>(bloomW), static_cast<LONG>(bloomH)};
@@ -193,18 +197,18 @@ void PostProcess::ApplyBloom(ID3D12GraphicsCommandList* cmdList, ConstantBufferA
 
   // ── Pass 2: Gaussian blur (horizontal then vertical) ──────────────
   {
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_brightPassRT.get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    cmdList->ResourceBarrier(1, &barrier);
+    D3D12_RESOURCE_BARRIER barriers[] = {
+      CD3DX12_RESOURCE_BARRIER::Transition(m_brightPassRT.get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+      CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[0].get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                                           D3D12_RESOURCE_STATE_RENDER_TARGET),
+    };
+    cmdList->ResourceBarrier(_countof(barriers), barriers);
 
     cmdList->SetPipelineState(m_blurPSO.get());
 
     // Horizontal blur
     {
-      auto barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[0].get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-                                                           D3D12_RESOURCE_STATE_RENDER_TARGET);
-      cmdList->ResourceBarrier(1, &barrier2);
-
       struct
       {
         float TexelX, TexelY, _Pad0, _Pad1;
@@ -212,22 +216,22 @@ void PostProcess::ApplyBloom(ID3D12GraphicsCommandList* cmdList, ConstantBufferA
       auto cb = cbAlloc.Allocate(sizeof(data));
       memcpy(cb.CpuAddress, &data, sizeof(data));
 
-      auto srcSRV = makeSRV(m_brightPassRT.get());
+      auto srcSRV = copySRV(m_brightPassSRV_CPU);
       cmdList->OMSetRenderTargets(1, &m_blurRTV[0], FALSE, nullptr);
       cmdList->SetGraphicsRootConstantBufferView(0, cb.GpuAddress);
       cmdList->SetGraphicsRootDescriptorTable(1, srcSRV);
       cmdList->DrawInstanced(3, 1, 0, 0);
-
-      auto barrier3 = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[0].get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-      cmdList->ResourceBarrier(1, &barrier3);
     }
 
-    // Vertical blur
+    // V-blur entry: blurRT[0] → SRV, blurRT[1] → RT
     {
-      auto barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[1].get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-                                                           D3D12_RESOURCE_STATE_RENDER_TARGET);
-      cmdList->ResourceBarrier(1, &barrier2);
+      D3D12_RESOURCE_BARRIER blurBarriers[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[0].get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[1].get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                                             D3D12_RESOURCE_STATE_RENDER_TARGET),
+      };
+      cmdList->ResourceBarrier(_countof(blurBarriers), blurBarriers);
 
       struct
       {
@@ -236,15 +240,15 @@ void PostProcess::ApplyBloom(ID3D12GraphicsCommandList* cmdList, ConstantBufferA
       auto cb = cbAlloc.Allocate(sizeof(data));
       memcpy(cb.CpuAddress, &data, sizeof(data));
 
-      auto srcSRV = makeSRV(m_blurRT[0].get());
+      auto srcSRV = copySRV(m_blurSRV_CPU[0]);
       cmdList->OMSetRenderTargets(1, &m_blurRTV[1], FALSE, nullptr);
       cmdList->SetGraphicsRootConstantBufferView(0, cb.GpuAddress);
       cmdList->SetGraphicsRootDescriptorTable(1, srcSRV);
       cmdList->DrawInstanced(3, 1, 0, 0);
 
-      auto barrier3 = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[1].get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-      cmdList->ResourceBarrier(1, &barrier3);
+      auto exitBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[1].get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                                              D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+      cmdList->ResourceBarrier(1, &exitBarrier);
     }
   }
 
@@ -277,7 +281,8 @@ void PostProcess::ApplyBloom(ID3D12GraphicsCommandList* cmdList, ConstantBufferA
 
     D3D12_CPU_DESCRIPTOR_HANDLE cpu1 = cpu0;
     cpu1.ptr += srvHeap.GetDescriptorSize();
-    device->CreateShaderResourceView(m_blurRT[1].get(), &srvDesc, cpu1);
+    device->CopyDescriptorsSimple(1, cpu1, m_blurSRV_CPU[1],
+      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     struct
     {
@@ -308,8 +313,8 @@ void PostProcess::ApplyBloomAdditive(ID3D12GraphicsCommandList* cmdList, Constan
   cmdList->SetGraphicsRootSignature(m_rootSignature.get());
   cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-  // Helper: create SRV in shader-visible heap
-  auto makeSRV = [&](ID3D12Resource* resource) -> DescriptorHandle
+  // Helper: create SRV for the scene RT (back buffer, changes per frame)
+  auto makeSceneSRV = [&]() -> DescriptorHandle
   {
     auto handle = srvHeap.Allocate(1);
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -317,19 +322,29 @@ void PostProcess::ApplyBloomAdditive(ID3D12GraphicsCommandList* cmdList, Constan
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Texture2D.MipLevels = 1;
-    device->CreateShaderResourceView(resource, &srvDesc, handle);
+    device->CreateShaderResourceView(sceneRT, &srvDesc, handle);
+    return handle;
+  };
+
+  // Helper: copy a cached CPU-side SRV into the shader-visible heap
+  auto copySRV = [&](D3D12_CPU_DESCRIPTOR_HANDLE cpuSRV) -> DescriptorHandle
+  {
+    auto handle = srvHeap.Allocate(1);
+    device->CopyDescriptorsSimple(1,
+      static_cast<D3D12_CPU_DESCRIPTOR_HANDLE>(handle), cpuSRV,
+      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     return handle;
   };
 
   // ── Pass 1: Bright-pass extract ──────────────────────────────────────
   {
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    cmdList->ResourceBarrier(1, &barrier);
-
-    auto barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(m_brightPassRT.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-                                                         D3D12_RESOURCE_STATE_RENDER_TARGET);
-    cmdList->ResourceBarrier(1, &barrier2);
+    D3D12_RESOURCE_BARRIER barriers[] = {
+      CD3DX12_RESOURCE_BARRIER::Transition(sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+      CD3DX12_RESOURCE_BARRIER::Transition(m_brightPassRT.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                                           D3D12_RESOURCE_STATE_RENDER_TARGET),
+    };
+    cmdList->ResourceBarrier(_countof(barriers), barriers);
 
     struct
     {
@@ -339,7 +354,7 @@ void PostProcess::ApplyBloomAdditive(ID3D12GraphicsCommandList* cmdList, Constan
     auto cb = cbAlloc.Allocate(sizeof(data));
     memcpy(cb.CpuAddress, &data, sizeof(data));
 
-    auto sceneSRV = makeSRV(sceneRT);
+    auto sceneSRV = makeSceneSRV();
 
     D3D12_VIEWPORT vp = {0, 0, bloomW, bloomH, 0, 1};
     D3D12_RECT scissor = {0, 0, static_cast<LONG>(bloomW), static_cast<LONG>(bloomH)};
@@ -355,18 +370,18 @@ void PostProcess::ApplyBloomAdditive(ID3D12GraphicsCommandList* cmdList, Constan
 
   // ── Pass 2: Gaussian blur (horizontal then vertical) ──────────────
   {
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_brightPassRT.get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    cmdList->ResourceBarrier(1, &barrier);
+    D3D12_RESOURCE_BARRIER barriers[] = {
+      CD3DX12_RESOURCE_BARRIER::Transition(m_brightPassRT.get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+      CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[0].get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                                           D3D12_RESOURCE_STATE_RENDER_TARGET),
+    };
+    cmdList->ResourceBarrier(_countof(barriers), barriers);
 
     cmdList->SetPipelineState(m_blurPSO.get());
 
     // Horizontal blur
     {
-      auto barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[0].get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-                                                           D3D12_RESOURCE_STATE_RENDER_TARGET);
-      cmdList->ResourceBarrier(1, &barrier2);
-
       struct
       {
         float TexelX, TexelY, _Pad0, _Pad1;
@@ -374,22 +389,22 @@ void PostProcess::ApplyBloomAdditive(ID3D12GraphicsCommandList* cmdList, Constan
       auto cb = cbAlloc.Allocate(sizeof(data));
       memcpy(cb.CpuAddress, &data, sizeof(data));
 
-      auto srcSRV = makeSRV(m_brightPassRT.get());
+      auto srcSRV = copySRV(m_brightPassSRV_CPU);
       cmdList->OMSetRenderTargets(1, &m_blurRTV[0], FALSE, nullptr);
       cmdList->SetGraphicsRootConstantBufferView(0, cb.GpuAddress);
       cmdList->SetGraphicsRootDescriptorTable(1, srcSRV);
       cmdList->DrawInstanced(3, 1, 0, 0);
-
-      auto barrier3 = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[0].get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-      cmdList->ResourceBarrier(1, &barrier3);
     }
 
-    // Vertical blur
+    // V-blur entry: blurRT[0] → SRV, blurRT[1] → RT
     {
-      auto barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[1].get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-                                                           D3D12_RESOURCE_STATE_RENDER_TARGET);
-      cmdList->ResourceBarrier(1, &barrier2);
+      D3D12_RESOURCE_BARRIER blurBarriers[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[0].get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[1].get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                                             D3D12_RESOURCE_STATE_RENDER_TARGET),
+      };
+      cmdList->ResourceBarrier(_countof(blurBarriers), blurBarriers);
 
       struct
       {
@@ -398,15 +413,15 @@ void PostProcess::ApplyBloomAdditive(ID3D12GraphicsCommandList* cmdList, Constan
       auto cb = cbAlloc.Allocate(sizeof(data));
       memcpy(cb.CpuAddress, &data, sizeof(data));
 
-      auto srcSRV = makeSRV(m_blurRT[0].get());
+      auto srcSRV = copySRV(m_blurSRV_CPU[0]);
       cmdList->OMSetRenderTargets(1, &m_blurRTV[1], FALSE, nullptr);
       cmdList->SetGraphicsRootConstantBufferView(0, cb.GpuAddress);
       cmdList->SetGraphicsRootDescriptorTable(1, srcSRV);
       cmdList->DrawInstanced(3, 1, 0, 0);
 
-      auto barrier3 = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[1].get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-      cmdList->ResourceBarrier(1, &barrier3);
+      auto exitBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_blurRT[1].get(), D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                                              D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+      cmdList->ResourceBarrier(1, &exitBarrier);
     }
   }
 
@@ -427,7 +442,7 @@ void PostProcess::ApplyBloomAdditive(ID3D12GraphicsCommandList* cmdList, Constan
     cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
     // Single SRV for bloom texture
-    auto bloomSRV = makeSRV(m_blurRT[1].get());
+    auto bloomSRV = copySRV(m_blurSRV_CPU[1]);
 
     struct
     {

@@ -34,6 +34,10 @@ class GameApp : public GameMain
     void RenderCanvas() override;
     void OnWindowSizeChanged(int width, int height) override;
 
+    // IDeviceNotify — handle GPU device removal (TDR)
+    void OnDeviceLost() override;
+    void OnDeviceRestored() override;
+
     // Input forwarding from WndProc.
     bool ProcessInput(UINT _message, WPARAM _wParam, LPARAM _lParam);
 

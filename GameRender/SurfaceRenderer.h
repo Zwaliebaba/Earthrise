@@ -56,6 +56,10 @@ namespace Neuron::Graphics
   public:
     void Initialize();
 
+    // Eagerly build surface meshes for all (meshKey × surfaceType) combos in a category.
+    // Call during startup after MeshCache::PreloadCategory so CMO files are hot in cache.
+    void PreloadAllSurfaces(std::string_view categoryFolder);
+
     // Call once per frame before rendering surface objects.
     void BeginFrame(ID3D12GraphicsCommandList* cmdList,
       ConstantBufferAllocator& cbAlloc,

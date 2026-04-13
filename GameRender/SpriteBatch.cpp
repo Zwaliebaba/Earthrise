@@ -23,32 +23,15 @@ void SpriteBatch::Initialize()
     { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT,  0, sizeof(XMFLOAT2),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
   };
 
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-  psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
-  psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { g_pSpriteVS, sizeof(g_pSpriteVS) };
-  psoDesc.PS = { g_pSpritePS, sizeof(g_pSpritePS) };
-  psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-  psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-
-  // Alpha blending for UI
-  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-  psoDesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-  psoDesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-  psoDesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-  psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-  psoDesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-  psoDesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-  psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-
-  psoDesc.DepthStencilState.DepthEnable = FALSE;
-  psoDesc.SampleMask = UINT_MAX;
-  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-  psoDesc.NumRenderTargets = 1;
-  psoDesc.RTVFormats[0] = Core::GetBackBufferFormat();
-  psoDesc.SampleDesc.Count = 1;
-
-  m_pso = PipelineHelpers::CreateGraphicsPSO(psoDesc);
+  m_pso = PsoBuilder()
+    .WithRootSignature(m_rootSignature.get())
+    .WithVS(g_pSpriteVS, sizeof(g_pSpriteVS))
+    .WithPS(g_pSpritePS, sizeof(g_pSpritePS))
+    .WithInputLayout(inputLayout, _countof(inputLayout))
+    .NoCull()
+    .AlphaBlend()
+    .NoDepth()
+    .Build();
   SetName(m_pso.get(), L"SpriteBatchPSO");
 
   m_vertices.reserve(MAX_SPRITES_PER_BATCH * VERTICES_PER_SPRITE);

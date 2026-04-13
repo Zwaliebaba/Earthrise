@@ -10,7 +10,7 @@ namespace Neuron::Graphics
   class SunBillboard
   {
   public:
-    void Initialize();
+    void Initialize(ShaderVisibleHeap& _srvHeap);
 
     void XM_CALLCONV Render(
       ID3D12GraphicsCommandList* _cmdList,
@@ -38,5 +38,6 @@ namespace Neuron::Graphics
     com_ptr<ID3D12RootSignature> m_rootSignature;
     com_ptr<ID3D12Resource>      m_glowTexture;
     D3D12_CPU_DESCRIPTOR_HANDLE  m_glowSRV_CPU{};
+    D3D12_GPU_DESCRIPTOR_HANDLE  m_glowSRV_GPU{};  // Persistent slot in shader-visible heap
   };
 }

@@ -22,7 +22,7 @@ com_ptr<ID3D12PipelineState>  BitmapFont::s_pso;
 com_ptr<ID3D12RootSignature>  BitmapFont::s_rootSignature;
 bool BitmapFont::s_pipelineReady = false;
 
-void BitmapFont::LoadFromFile(const std::wstring&) {}
+void BitmapFont::LoadFromFile(const std::wstring&, ShaderVisibleHeap&) {}
 void BitmapFont::CreatePipeline() {}
 void BitmapFont::BeginDraw(ID3D12GraphicsCommandList*, ConstantBufferAllocator&, ShaderVisibleHeap&, UINT, UINT) {}
 void XM_CALLCONV BitmapFont::DrawString(float, float, std::string_view, FXMVECTOR, float) {}

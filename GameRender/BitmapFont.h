@@ -19,7 +19,7 @@ namespace Neuron::Graphics
   {
   public:
     // Load the glyph atlas from a DDS file under GameData/.
-    void LoadFromFile(const std::wstring& relativePath);
+    void LoadFromFile(const std::wstring& relativePath, ShaderVisibleHeap& _srvHeap);
 
     // Begin a text rendering batch. Binds pipeline and projection.
     void BeginDraw(ID3D12GraphicsCommandList* cmdList,
@@ -65,6 +65,7 @@ namespace Neuron::Graphics
     // GPU resources
     com_ptr<ID3D12Resource>      m_texture;
     D3D12_CPU_DESCRIPTOR_HANDLE  m_srvCPU{};
+    D3D12_GPU_DESCRIPTOR_HANDLE  m_srvGPU{};  // Persistent slot in shader-visible heap
 
     // Pipeline (shared across all BitmapFont instances via static init)
     static com_ptr<ID3D12PipelineState>  s_pso;

@@ -50,39 +50,21 @@ void BitmapFont::CreatePipeline()
     { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT,  0, sizeof(XMFLOAT2) * 2,        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
   };
 
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-  psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
-  psoDesc.pRootSignature = s_rootSignature.get();
-  psoDesc.VS = { g_pFontVS, sizeof(g_pFontVS) };
-  psoDesc.PS = { g_pFontPS, sizeof(g_pFontPS) };
-  psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-  psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-
-  // Alpha blending for text
-  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-  psoDesc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-  psoDesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-  psoDesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-  psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-  psoDesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-  psoDesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-  psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-  psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-
-  psoDesc.DepthStencilState.DepthEnable = FALSE;
-  psoDesc.SampleMask = UINT_MAX;
-  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-  psoDesc.NumRenderTargets = 1;
-  psoDesc.RTVFormats[0] = Core::GetBackBufferFormat();
-  psoDesc.SampleDesc.Count = 1;
-
-  s_pso = PipelineHelpers::CreateGraphicsPSO(psoDesc);
+  s_pso = PsoBuilder()
+    .WithRootSignature(s_rootSignature.get())
+    .WithVS(g_pFontVS, sizeof(g_pFontVS))
+    .WithPS(g_pFontPS, sizeof(g_pFontPS))
+    .WithInputLayout(inputLayout, _countof(inputLayout))
+    .NoCull()
+    .AlphaBlend()
+    .NoDepth()
+    .Build();
   SetName(s_pso.get(), L"BitmapFontPSO");
 
   s_pipelineReady = true;
 }
 
-void BitmapFont::LoadFromFile(const std::wstring& relativePath)
+void BitmapFont::LoadFromFile(const std::wstring& relativePath, ShaderVisibleHeap& _srvHeap)
 {
   CreatePipeline();
 
@@ -101,7 +83,7 @@ void BitmapFont::LoadFromFile(const std::wstring& relativePath)
 
   m_texture = GpuResourceManager::CreateStaticTexture(image, L"BitmapFontTexture");
 
-  // Create non-shader-visible SRV (copied to shader-visible heap at draw time)
+  // Create non-shader-visible SRV
   m_srvCPU = Core::AllocateDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
   D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
   srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -109,6 +91,14 @@ void BitmapFont::LoadFromFile(const std::wstring& relativePath)
   srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
   srvDesc.Texture2D.MipLevels = 1;
   Core::GetD3DDevice()->CreateShaderResourceView(m_texture.get(), &srvDesc, m_srvCPU);
+
+  // Allocate persistent slot in shader-visible heap and copy SRV once.
+  auto persistentHandle = _srvHeap.AllocatePersistent(1);
+  Core::GetD3DDevice()->CopyDescriptorsSimple(1,
+    static_cast<D3D12_CPU_DESCRIPTOR_HANDLE>(persistentHandle),
+    m_srvCPU,
+    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  m_srvGPU = persistentHandle;
 
   // Set these last so IsLoaded() only returns true when the texture is ready
   m_pso = s_pso.get();
@@ -141,21 +131,14 @@ void BitmapFont::BeginDraw(ID3D12GraphicsCommandList* cmdList,
   auto alloc = cbAlloc.Allocate(sizeof(data));
   memcpy(alloc.CpuAddress, &data, sizeof(data));
 
-  // Copy SRV to shader-visible heap
-  auto srvHandle = srvHeap.Allocate(1);
-  Core::GetD3DDevice()->CopyDescriptorsSimple(1,
-    static_cast<D3D12_CPU_DESCRIPTOR_HANDLE>(srvHandle),
-    m_srvCPU,
-    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-  // Bind pipeline
+  // Bind pipeline with persistent SRV
   ID3D12DescriptorHeap* heaps[] = { srvHeap.GetHeap() };
   cmdList->SetDescriptorHeaps(1, heaps);
 
   cmdList->SetPipelineState(m_pso);
   cmdList->SetGraphicsRootSignature(m_rootSignature);
   cmdList->SetGraphicsRootConstantBufferView(0, alloc.GpuAddress);
-  cmdList->SetGraphicsRootDescriptorTable(1, srvHandle);
+  cmdList->SetGraphicsRootDescriptorTable(1, m_srvGPU);
   cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 

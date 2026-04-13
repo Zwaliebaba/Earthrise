@@ -28,6 +28,53 @@ void SurfaceRenderer::Initialize()
   }
 }
 
+void SurfaceRenderer::PreloadAllSurfaces(std::string_view categoryFolder)
+{
+  // Scan the category folder for .cmo files and build all (meshKey × surfaceType) combos
+  std::wstring searchPath = FileSys::GetHomeDirectory();
+  searchPath += L"Meshes\\";
+  for (char c : categoryFolder)
+    searchPath += static_cast<wchar_t>(c);
+  searchPath += L"\\*.cmo";
+
+  WIN32_FIND_DATAW findData;
+  HANDLE hFind = FindFirstFileW(searchPath.c_str(), &findData);
+  if (hFind == INVALID_HANDLE_VALUE)
+    return;
+
+  std::vector<std::string> meshKeys;
+  do
+  {
+    std::wstring name(findData.cFileName);
+    if (name.size() > 4)
+      name.resize(name.size() - 4); // strip ".cmo"
+
+    std::string key(categoryFolder);
+    key += '/';
+    for (wchar_t wc : name)
+      key += static_cast<char>(wc);
+
+    meshKeys.push_back(std::move(key));
+  }
+  while (FindNextFileW(hFind, &findData));
+  FindClose(hFind);
+
+  // Build all surface meshes eagerly — blocking uploads happen during startup,
+  // not mid-frame. This eliminates the per-frame hitch from §2.2 / §3.5.
+  for (const auto& meshKey : meshKeys)
+  {
+    for (auto type : RangeSurfaceType())
+    {
+      (void)GetSurfaceMesh(meshKey, type);
+    }
+  }
+
+  Neuron::DebugTrace("SurfaceRenderer: preloaded {} surface meshes ({} meshes × {} types)",
+                     meshKeys.size() * static_cast<size_t>(Neuron::SurfaceType::COUNT),
+                     meshKeys.size(),
+                     static_cast<size_t>(Neuron::SurfaceType::COUNT));
+}
+
 void SurfaceRenderer::BeginFrame(ID3D12GraphicsCommandList* cmdList,
   ConstantBufferAllocator& cbAlloc,
   const Camera& camera)

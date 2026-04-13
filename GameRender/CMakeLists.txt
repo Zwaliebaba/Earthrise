@@ -65,4 +65,6 @@ target_compile_shaders(GameRender
         Shaders/FontPS.hlsl
         Shaders/BillboardVS.hlsl
         Shaders/BillboardPS.hlsl
+        Shaders/ParticleVS.hlsl
+        Shaders/ParticlePS.hlsl
 )
