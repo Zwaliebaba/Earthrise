@@ -1,132 +1,15 @@
 #include "pch.h"
 #include "PostProcess.h"
+#include "CompiledShaders/FullscreenVS.h"
+#include "CompiledShaders/BloomExtractPS.h"
+#include "CompiledShaders/BloomBlurPS.h"
+#include "CompiledShaders/BloomCompositePS.h"
+#include "CompiledShaders/BloomAdditivePS.h"
 
 using namespace Neuron::Graphics;
 
-namespace
-{
-  constexpr auto c_fullscreenVS = R"(
-struct VSOutput
-{
-    float4 Position : SV_Position;
-    float2 TexCoord : TEXCOORD;
-};
-
-VSOutput main(uint vertexId : SV_VertexID)
-{
-    VSOutput output;
-    // Full-screen triangle: 3 vertices, no vertex buffer needed
-    output.TexCoord = float2((vertexId << 1) & 2, vertexId & 2);
-    output.Position = float4(output.TexCoord * float2(2.0, -2.0) + float2(-1.0, 1.0), 0.0, 1.0);
-    return output;
-}
-)";
-
-  constexpr auto c_bloomExtractPS = R"(
-cbuffer BloomConstants : register(b0)
-{
-    float Threshold;
-    float3 _Pad;
-};
-
-Texture2D SceneTexture : register(t0);
-SamplerState LinearSampler : register(s0);
-
-struct PSInput
-{
-    float4 Position : SV_Position;
-    float2 TexCoord : TEXCOORD;
-};
-
-float4 main(PSInput input) : SV_Target
-{
-    float4 color = SceneTexture.Sample(LinearSampler, input.TexCoord);
-    float brightness = dot(color.rgb, float3(0.2126, 0.7152, 0.0722));
-    float contribution = max(0, brightness - Threshold);
-    return float4(color.rgb * (contribution / max(brightness, 0.001)), 1.0);
-}
-)";
-
-  constexpr auto c_bloomBlurPS = R"(
-cbuffer BlurConstants : register(b0)
-{
-    float2 TexelSize;
-    float2 _Pad;
-};
-
-Texture2D SourceTexture : register(t0);
-SamplerState LinearSampler : register(s0);
-
-struct PSInput
-{
-    float4 Position : SV_Position;
-    float2 TexCoord : TEXCOORD;
-};
-
-static const float weights[5] = { 0.227027, 0.194946, 0.121622, 0.054054, 0.016216 };
-
-float4 main(PSInput input) : SV_Target
-{
-    float3 result = SourceTexture.Sample(LinearSampler, input.TexCoord).rgb * weights[0];
-
-    for (int i = 1; i < 5; ++i)
-    {
-        float2 offset = float2(TexelSize.x * i, TexelSize.y * i);
-        result += SourceTexture.Sample(LinearSampler, input.TexCoord + offset).rgb * weights[i];
-        result += SourceTexture.Sample(LinearSampler, input.TexCoord - offset).rgb * weights[i];
-    }
-
-    return float4(result, 1.0);
-}
-)";
-
-  constexpr auto c_bloomCompositePS = R"(
-Texture2D SceneTexture : register(t0);
-Texture2D BloomTexture : register(t1);
-SamplerState LinearSampler : register(s0);
-
-struct PSInput
-{
-    float4 Position : SV_Position;
-    float2 TexCoord : TEXCOORD;
-};
-
-float4 main(PSInput input) : SV_Target
-{
-    float4 scene = SceneTexture.Sample(LinearSampler, input.TexCoord);
-    float4 bloom = BloomTexture.Sample(LinearSampler, input.TexCoord);
-    return float4(scene.rgb + bloom.rgb, scene.a);
-}
-)";
-
-  // Additive-only composite: just outputs bloom, relies on additive blending
-  constexpr auto c_bloomAdditivePS = R"(
-Texture2D BloomTexture : register(t0);
-SamplerState LinearSampler : register(s0);
-
-struct PSInput
-{
-    float4 Position : SV_Position;
-    float2 TexCoord : TEXCOORD;
-};
-
-float4 main(PSInput input) : SV_Target
-{
-    float4 bloom = BloomTexture.Sample(LinearSampler, input.TexCoord);
-    return bloom;
-}
-)";
-}
-
 void PostProcess::Initialize(UINT width, UINT height)
 {
-  // Compile shaders
-  auto vsCode = PipelineHelpers::CompileShader(c_fullscreenVS, strlen(c_fullscreenVS), "main", "vs_5_1", "FullscreenVS");
-  auto extractPS = PipelineHelpers::CompileShader(c_bloomExtractPS, strlen(c_bloomExtractPS), "main", "ps_5_1", "BloomExtractPS");
-  auto blurPS = PipelineHelpers::CompileShader(c_bloomBlurPS, strlen(c_bloomBlurPS), "main", "ps_5_1", "BloomBlurPS");
-  auto compositePS = PipelineHelpers::CompileShader(c_bloomCompositePS, strlen(c_bloomCompositePS), "main", "ps_5_1", "BloomCompositePS");
-  auto additivePS = PipelineHelpers::CompileShader(c_bloomAdditivePS, strlen(c_bloomAdditivePS), "main", "ps_5_1", "BloomAdditivePS");
-
   // Root signature: 1 CBV (b0) + 1 descriptor table (SRVs t0-t1) + 1 static sampler
   CD3DX12_DESCRIPTOR_RANGE srvRange;
   srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0); // t0, t1
@@ -144,12 +27,12 @@ void PostProcess::Initialize(UINT width, UINT height)
   SetName(m_rootSignature.get(), L"PostProcessRootSig");
 
   // Common PSO state (no depth, full-screen triangle, no input layout)
-  auto makePSO = [&](ID3DBlob* ps) -> com_ptr<ID3D12PipelineState>
+  auto makePSO = [&](const void* psBytecode, size_t psSize) -> com_ptr<ID3D12PipelineState>
   {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
     desc.pRootSignature = m_rootSignature.get();
-    desc.VS = {vsCode->GetBufferPointer(), vsCode->GetBufferSize()};
-    desc.PS = {ps->GetBufferPointer(), ps->GetBufferSize()};
+    desc.VS = { g_pFullscreenVS, sizeof(g_pFullscreenVS) };
+    desc.PS = { psBytecode, psSize };
     desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -162,21 +45,21 @@ void PostProcess::Initialize(UINT width, UINT height)
     return PipelineHelpers::CreateGraphicsPSO(desc);
   };
 
-  m_extractPSO = makePSO(extractPS.get());
+  m_extractPSO = makePSO(g_pBloomExtractPS, sizeof(g_pBloomExtractPS));
   SetName(m_extractPSO.get(), L"BloomExtractPSO");
 
-  m_blurPSO = makePSO(blurPS.get());
+  m_blurPSO = makePSO(g_pBloomBlurPS, sizeof(g_pBloomBlurPS));
   SetName(m_blurPSO.get(), L"BloomBlurPSO");
 
-  m_compositePSO = makePSO(compositePS.get());
+  m_compositePSO = makePSO(g_pBloomCompositePS, sizeof(g_pBloomCompositePS));
   SetName(m_compositePSO.get(), L"BloomCompositePSO");
 
   // Additive composite PSO — same as composite but with additive blending, 1 SRV only
   {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
     desc.pRootSignature = m_rootSignature.get();
-    desc.VS = {vsCode->GetBufferPointer(), vsCode->GetBufferSize()};
-    desc.PS = {additivePS->GetBufferPointer(), additivePS->GetBufferSize()};
+    desc.VS = { g_pFullscreenVS, sizeof(g_pFullscreenVS) };
+    desc.PS = { g_pBloomAdditivePS, sizeof(g_pBloomAdditivePS) };
     desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);

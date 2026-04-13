@@ -133,6 +133,22 @@ When context files don't provide specific guidance:
 - **Mesh assets**: `Assets/Mesh/<CategoryFolder>/<MeshName>.cmo` — folder per category (e.g., `Hulls/`, `Asteroids/`, `Stations/`); `Hulls/` maps to `Ship` category. Mesh name (without `.cmo`) is the key in `MeshCache` and object definitions.
 - **UI rendering**: `RenderCanvas()` composites HUD/UI on top of the 3D scene (same command list, same render target, no intermediate clear between `RenderScene()` and `RenderCanvas()`). UI uses `SpriteBatch` for textured quads and flat-color geometry for Darwinia-style chrome.
 
+## Shader Conventions
+
+- **Offline compilation**: All HLSL shaders are pre-compiled to C++ header files at build time via DXC (DirectX Shader Compiler). Do **not** embed HLSL source in C++ files or call `D3DCompile` / `PipelineHelpers::CompileShader` at runtime.
+- **Shader model**: `6_7` (set in `GameRender/CMakeLists.txt` via `target_compile_shaders`).
+- **Source location**: `GameRender/Shaders/<Name>.hlsl`. Filename must end with a shader-type suffix: `VS`, `PS`, `GS`, `CS`, `HS`, or `DS`.
+- **Compiled output**: `GameRender/CompiledShaders/<Name>.h` — auto-generated; do **not** hand-edit. Add `CompiledShaders/` to `.gitignore`.
+- **Variable naming**: Each header defines a `const BYTE g_p<Name>[]` array (e.g., `g_pFlatColorVS` for `FlatColorVS.hlsl`).
+- **Entry point**: All shaders use `main` as the entry point.
+- **Debug builds**: DXC is invoked with `/Qembed_debug /Zi` for shader PDB embedding. Release builds use `/O3`.
+- **Usage pattern in C++**: Include the generated header and reference the bytecode directly in the PSO descriptor:
+  ```cpp
+  #include "CompiledShaders/MyShaderVS.h"
+  psoDesc.VS = { g_pMyShaderVS, sizeof(g_pMyShaderVS) };
+  ```
+- **Adding a new shader**: Create the `.hlsl` file in `GameRender/Shaders/`, then add it to the `SHADERS` list in `target_compile_shaders()` inside `GameRender/CMakeLists.txt`. The CMake function (`cmake/CompileShaders.cmake`) handles DXC invocation, output path, and variable naming automatically.
+
 ## Performance Constraints
 
 - **`EventManager`**: Uses `std::scoped_lock` on every call — do not use for hot-path simulation systems (movement, collision, combat). Use direct function calls or per-system callbacks instead. Reserve `EventManager` for infrequent events only (player login, chat, docking, session management).

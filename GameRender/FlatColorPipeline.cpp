@@ -1,115 +1,12 @@
 #include "pch.h"
 #include "FlatColorPipeline.h"
+#include "CompiledShaders/FlatColorVS.h"
+#include "CompiledShaders/FlatColorPS.h"
 
 using namespace Neuron::Graphics;
 
-namespace
-{
-  // Embedded HLSL — compiled at initialization time via D3DCompile
-  constexpr const char* c_vsSource = R"(
-cbuffer FrameConstants : register(b0)
-{
-    float4x4 ViewProjection;
-    float3   CameraPosition;
-    float    _Pad0;
-    float3   LightDirection;
-    float    AmbientIntensity;
-};
-
-cbuffer DrawConstants : register(b1)
-{
-    float4x4 World;
-    float4   Color;
-};
-
-struct VSInput
-{
-    float3 Position : POSITION;
-    float3 Normal   : NORMAL;
-};
-
-struct VSOutput
-{
-    float4 Position  : SV_Position;
-    float3 WorldNormal   : NORMAL;
-    float3 WorldPosition : TEXCOORD0;
-};
-
-VSOutput main(VSInput input)
-{
-    VSOutput output;
-    float4 worldPos = mul(float4(input.Position, 1.0), World);
-    output.Position      = mul(worldPos, ViewProjection);
-    output.WorldNormal   = normalize(mul(input.Normal, (float3x3) World));
-    output.WorldPosition = worldPos.xyz;
-    return output;
-}
-)";
-
-  constexpr const char* c_psSource = R"(
-cbuffer FrameConstants : register(b0)
-{
-    float4x4 ViewProjection;
-    float3   CameraPosition;
-    float    _Pad0;
-    float3   LightDirection;
-    float    AmbientIntensity;
-};
-
-cbuffer DrawConstants : register(b1)
-{
-    float4x4 World;
-    float4   Color;
-};
-
-struct PSInput
-{
-    float4 Position      : SV_Position;
-    float3 WorldNormal   : NORMAL;
-    float3 WorldPosition : TEXCOORD0;
-};
-
-float4 main(PSInput input) : SV_Target
-{
-    float3 N = normalize(input.WorldNormal);
-    float3 L = normalize(-LightDirection);
-    float3 V = normalize(CameraPosition - input.WorldPosition);
-    float3 H = normalize(L + V);
-
-    // Hemisphere ambient: brighter from above (sky), darker below (ground)
-    float skyBlend = N.y * 0.5 + 0.5;
-    float ambient  = lerp(0.25, 0.65, skyBlend) * AmbientIntensity;
-
-    // Half-Lambert diffuse: softer shadow falloff than standard Lambert
-    float NdotL      = dot(N, L);
-    float halfLambert = NdotL * 0.5 + 0.5;
-    float diffuse     = halfLambert * halfLambert;
-
-    // Blinn-Phong specular highlight
-    float NdotH = saturate(dot(N, H));
-    float spec  = pow(NdotH, 40.0) * 0.25 * step(0.0, NdotL);
-
-    // Fresnel rim for silhouette readability in space
-    float NdotV = saturate(dot(N, V));
-    float rim   = pow(1.0 - NdotV, 3.0) * 0.12;
-
-    float3 result = Color.rgb * (ambient + diffuse * (1.0 - AmbientIntensity))
-                  + spec
-                  + rim * Color.rgb;
-
-    return float4(result, Color.a);
-}
-)";
-}
-
 void FlatColorPipeline::Initialize()
 {
-  // Compile shaders
-  auto vsByteCode = PipelineHelpers::CompileShader(
-    c_vsSource, strlen(c_vsSource), "main", "vs_5_1", "FlatColorVS");
-  auto psByteCode = PipelineHelpers::CompileShader(
-    c_psSource, strlen(c_psSource), "main", "ps_5_1", "FlatColorPS");
-
   // Root signature: 2 root CBVs (b0 = frame, b1 = draw)
   CD3DX12_ROOT_PARAMETER rootParams[2];
   rootParams[ROOT_PARAM_FRAME_CBV].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
@@ -133,8 +30,8 @@ void FlatColorPipeline::Initialize()
   D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
   psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
   psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { vsByteCode->GetBufferPointer(), vsByteCode->GetBufferSize() };
-  psoDesc.PS = { psByteCode->GetBufferPointer(), psByteCode->GetBufferSize() };
+  psoDesc.VS = { g_pFlatColorVS, sizeof(g_pFlatColorVS) };
+  psoDesc.PS = { g_pFlatColorPS, sizeof(g_pFlatColorPS) };
   psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   psoDesc.RasterizerState.FrontCounterClockwise = TRUE; // CMO meshes use CCW winding
   psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);

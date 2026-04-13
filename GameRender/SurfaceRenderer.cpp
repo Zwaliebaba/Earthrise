@@ -52,6 +52,21 @@ SurfaceMesh* SurfaceRenderer::GetSurfaceMesh(std::string_view meshKey,
   if (it != m_meshCache.end())
     return it->second.get();
 
+  // Check if the mesh name is "Procedural" — skip file lookup and generate directly
+  auto lastSlash = meshKey.rfind('/');
+  std::string_view meshName = (lastSlash != std::string_view::npos)
+    ? meshKey.substr(lastSlash + 1)
+    : meshKey;
+
+  if (meshName == "Procedural")
+  {
+    auto sphereData = ProceduralMesh::GenerateUVSphere(24, 24);
+    auto surfMesh = BuildSurfaceMesh(sphereData, surfaceType);
+    auto* ptr = surfMesh.get();
+    m_meshCache[key] = std::move(surfMesh);
+    return ptr;
+  }
+
   // Load CMO from disk (same path resolution as MeshCache)
   std::wstring filePath = FileSys::GetHomeDirectory();
   filePath += L"Meshes\\";
@@ -61,14 +76,8 @@ SurfaceMesh* SurfaceRenderer::GetSurfaceMesh(std::string_view meshKey,
 
   if (GetFileAttributesW(filePath.c_str()) == INVALID_FILE_ATTRIBUTES)
   {
-    // No .cmo on disk — generate a procedural sphere (planet fallback)
-    Neuron::DebugTrace("SurfaceRenderer: mesh file not found, generating procedural sphere — {}",
-                       std::string(meshKey));
-    auto sphereData = ProceduralMesh::GenerateUVSphere(24, 24);
-    auto surfMesh = BuildSurfaceMesh(sphereData, surfaceType);
-    auto* ptr = surfMesh.get();
-    m_meshCache[key] = std::move(surfMesh);
-    return ptr;
+    Neuron::DebugTrace("SurfaceRenderer: mesh file not found — {}", std::string(meshKey));
+    return nullptr;
   }
 
   auto meshDataVec = CmoLoader::LoadFromFile(filePath);
@@ -119,7 +128,7 @@ std::unique_ptr<SurfaceMesh> SurfaceRenderer::BuildSurfaceMesh(
   float highest = 0.001f; // avoid division by zero
   for (const auto& v : meshData.Vertices)
   {
-    float absY = fabsf(v.Position.y);
+    float absY = std::abs(v.Position.y);
     if (absY > highest)
       highest = absY;
   }

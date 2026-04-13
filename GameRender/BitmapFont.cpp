@@ -2,6 +2,8 @@
 #include "BitmapFont.h"
 #include "DdsLoader.h"
 #include "GpuResourceManager.h"
+#include "CompiledShaders/FontVS.h"
+#include "CompiledShaders/FontPS.h"
 
 using namespace Neuron::Graphics;
 
@@ -10,65 +12,10 @@ com_ptr<ID3D12PipelineState>  BitmapFont::s_pso;
 com_ptr<ID3D12RootSignature>  BitmapFont::s_rootSignature;
 bool BitmapFont::s_pipelineReady = false;
 
-namespace
-{
-  constexpr const char* c_fontVS = R"(
-cbuffer FontConstants : register(b0)
-{
-    float4x4 Projection;
-};
-
-struct VSInput
-{
-    float2 Position : POSITION;
-    float2 TexCoord : TEXCOORD;
-    float4 Color    : COLOR;
-};
-
-struct VSOutput
-{
-    float4 Position : SV_Position;
-    float2 TexCoord : TEXCOORD;
-    float4 Color    : COLOR;
-};
-
-VSOutput main(VSInput input)
-{
-    VSOutput output;
-    output.Position = mul(float4(input.Position, 0.0, 1.0), Projection);
-    output.TexCoord = input.TexCoord;
-    output.Color = input.Color;
-    return output;
-}
-)";
-
-  constexpr const char* c_fontPS = R"(
-Texture2D FontTexture : register(t0);
-SamplerState PointSampler : register(s0);
-
-struct PSInput
-{
-    float4 Position : SV_Position;
-    float2 TexCoord : TEXCOORD;
-    float4 Color    : COLOR;
-};
-
-float4 main(PSInput input) : SV_Target
-{
-    float4 texel = FontTexture.Sample(PointSampler, input.TexCoord);
-    // Use texture alpha for glyph shape, multiply RGB by tint color
-    return float4(input.Color.rgb * texel.rgb, input.Color.a * texel.a);
-}
-)";
-}
-
 void BitmapFont::CreatePipeline()
 {
   if (s_pipelineReady)
     return;
-
-  auto vsCode = PipelineHelpers::CompileShader(c_fontVS, strlen(c_fontVS), "main", "vs_5_1", "FontVS");
-  auto psCode = PipelineHelpers::CompileShader(c_fontPS, strlen(c_fontPS), "main", "ps_5_1", "FontPS");
 
   // Root signature: b0 = CBV (projection), t0 = SRV descriptor table (font texture), s0 = static sampler
   CD3DX12_ROOT_PARAMETER rootParams[2];
@@ -106,8 +53,8 @@ void BitmapFont::CreatePipeline()
   D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
   psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
   psoDesc.pRootSignature = s_rootSignature.get();
-  psoDesc.VS = { vsCode->GetBufferPointer(), vsCode->GetBufferSize() };
-  psoDesc.PS = { psCode->GetBufferPointer(), psCode->GetBufferSize() };
+  psoDesc.VS = { g_pFontVS, sizeof(g_pFontVS) };
+  psoDesc.PS = { g_pFontPS, sizeof(g_pFontPS) };
   psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 

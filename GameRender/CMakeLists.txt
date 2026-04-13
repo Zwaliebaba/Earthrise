@@ -41,3 +41,28 @@ target_link_libraries(GameRender PUBLIC NeuronClient NeuronCore)
 
 # Compile definitions
 target_compile_definitions(GameRender PRIVATE _LIB)
+
+# ── Offline shader compilation (DXC → header files) ─────────────────────────
+target_compile_shaders(GameRender
+    SHADER_MODEL 6_7
+    SHADERS
+        Shaders/FlatColorVS.hlsl
+        Shaders/FlatColorPS.hlsl
+        Shaders/VertexColorVS.hlsl
+        Shaders/VertexColorPS.hlsl
+        Shaders/FullscreenVS.hlsl
+        Shaders/BloomExtractPS.hlsl
+        Shaders/BloomBlurPS.hlsl
+        Shaders/BloomCompositePS.hlsl
+        Shaders/BloomAdditivePS.hlsl
+        Shaders/SpriteVS.hlsl
+        Shaders/SpritePS.hlsl
+        Shaders/StarfieldVS.hlsl
+        Shaders/StarfieldPS.hlsl
+        Shaders/GridVS.hlsl
+        Shaders/GridPS.hlsl
+        Shaders/FontVS.hlsl
+        Shaders/FontPS.hlsl
+        Shaders/BillboardVS.hlsl
+        Shaders/BillboardPS.hlsl
+)

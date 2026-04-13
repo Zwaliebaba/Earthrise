@@ -82,6 +82,9 @@ if(EARTHRISE_USE_PIX)
     message(STATUS "PIX profiler enabled via vcpkg")
 endif()
 
+# ── Shader compilation (DXC → header) ──────────────────────────────────────
+include(${CMAKE_SOURCE_DIR}/cmake/CompileShaders.cmake)
+
 # ── Sub-projects ────────────────────────────────────────────────────────────
 add_subdirectory(NeuronCore)
 add_subdirectory(NeuronClient)

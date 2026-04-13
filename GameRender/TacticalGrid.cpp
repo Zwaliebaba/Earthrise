@@ -1,62 +1,13 @@
 #include "pch.h"
 #include "TacticalGrid.h"
 #include "GpuResourceManager.h"
+#include "CompiledShaders/GridVS.h"
+#include "CompiledShaders/GridPS.h"
 
 using namespace Neuron::Graphics;
 
 namespace
 {
-  constexpr const char* c_gridVS = R"(
-cbuffer GridConstants : register(b0)
-{
-    float4x4 ViewProjection;
-    float3   CameraPosition;
-    float    GridY;
-    float    GridExtent;
-    float    FadeStart;
-    float    FadeEnd;
-    float    _Pad;
-};
-
-struct VSInput
-{
-    float3 Position : POSITION;
-};
-
-struct VSOutput
-{
-    float4 Position : SV_Position;
-    float  Alpha    : ALPHA;
-};
-
-VSOutput main(VSInput input)
-{
-    VSOutput output;
-    float3 worldPos = float3(input.Position.x, GridY, input.Position.z);
-    output.Position = mul(float4(worldPos, 1.0), ViewProjection);
-
-    // Distance fade
-    float dist = length(worldPos - CameraPosition);
-    output.Alpha = 1.0 - saturate((dist - FadeStart) / (FadeEnd - FadeStart));
-
-    return output;
-}
-)";
-
-  constexpr const char* c_gridPS = R"(
-struct PSInput
-{
-    float4 Position : SV_Position;
-    float  Alpha    : ALPHA;
-};
-
-float4 main(PSInput input) : SV_Target
-{
-    // Cyan/blue grid lines
-    return float4(0.1, 0.6, 0.8, input.Alpha * 0.5);
-}
-)";
-
   struct GridVertex
   {
     XMFLOAT3 Position;
@@ -65,9 +16,6 @@ float4 main(PSInput input) : SV_Target
 
 void TacticalGrid::Initialize()
 {
-  auto vsCode = PipelineHelpers::CompileShader(c_gridVS, strlen(c_gridVS), "main", "vs_5_1", "GridVS");
-  auto psCode = PipelineHelpers::CompileShader(c_gridPS, strlen(c_gridPS), "main", "ps_5_1", "GridPS");
-
   // Root signature: 1 root CBV
   CD3DX12_ROOT_PARAMETER rootParam;
   rootParam.InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
@@ -87,8 +35,8 @@ void TacticalGrid::Initialize()
   D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
   psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
   psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { vsCode->GetBufferPointer(), vsCode->GetBufferSize() };
-  psoDesc.PS = { psCode->GetBufferPointer(), psCode->GetBufferSize() };
+  psoDesc.VS = { g_pGridVS, sizeof(g_pGridVS) };
+  psoDesc.PS = { g_pGridPS, sizeof(g_pGridPS) };
   psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 
   // Alpha blending for distance fade

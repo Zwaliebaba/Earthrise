@@ -2,77 +2,10 @@
 #include "SunBillboard.h"
 #include "GpuResourceManager.h"
 #include "DdsLoader.h"
+#include "CompiledShaders/BillboardVS.h"
+#include "CompiledShaders/BillboardPS.h"
 
 using namespace Neuron::Graphics;
-
-namespace
-{
-  constexpr const char* c_billboardVS = R"(
-cbuffer BillboardCB : register(b0)
-{
-    float4x4 ViewProjection;
-    float3   CameraRight;
-    float    Radius;
-    float3   CameraUp;
-    float    _Pad0;
-    float3   Center;
-    float    _Pad1;
-    float4   Color;
-};
-
-struct VSOutput
-{
-    float4 Position : SV_Position;
-    float2 TexCoord : TEXCOORD;
-};
-
-static const float2 QuadUVs[6] = {
-    {0,0}, {1,0}, {0,1},
-    {1,0}, {1,1}, {0,1}
-};
-static const float2 QuadOffsets[6] = {
-    {-1,+1}, {+1,+1}, {-1,-1},
-    {+1,+1}, {+1,-1}, {-1,-1}
-};
-
-VSOutput main(uint vertexId : SV_VertexID)
-{
-    VSOutput output;
-    float2 offset = QuadOffsets[vertexId] * Radius;
-    output.TexCoord = QuadUVs[vertexId];
-
-    float3 worldPos = Center
-        + CameraRight * offset.x
-        + CameraUp    * offset.y;
-
-    output.Position = mul(float4(worldPos, 1.0), ViewProjection);
-    return output;
-}
-)";
-
-  constexpr const char* c_billboardPS = R"(
-Texture2D GlowTexture : register(t0);
-SamplerState LinearSampler : register(s0);
-
-cbuffer BillboardCB : register(b0)
-{
-    float4x4 ViewProjection;
-    float3   CameraRight;
-    float    Radius;
-    float3   CameraUp;
-    float    _Pad0;
-    float3   Center;
-    float    _Pad1;
-    float4   Color;
-};
-
-float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD) : SV_Target
-{
-    float4 texel = GlowTexture.Sample(LinearSampler, uv);
-    return float4(texel.rgb * Color.rgb, texel.a * Color.a);
-}
-)";
-}
 
 void SunBillboard::Initialize()
 {
@@ -122,17 +55,11 @@ void SunBillboard::Initialize()
   m_rootSignature = PipelineHelpers::CreateRootSignature(rootSigDesc);
   SetName(m_rootSignature.get(), L"SunBillboardRootSig");
 
-  // Compile shaders
-  auto vsByteCode = PipelineHelpers::CompileShader(
-    c_billboardVS, strlen(c_billboardVS), "main", "vs_5_1", "SunBillboardVS");
-  auto psByteCode = PipelineHelpers::CompileShader(
-    c_billboardPS, strlen(c_billboardPS), "main", "ps_5_1", "SunBillboardPS");
-
-  // PSO — additive blend, no depth write, depth test enabled
+  // PSO
   D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
   psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { vsByteCode->GetBufferPointer(), vsByteCode->GetBufferSize() };
-  psoDesc.PS = { psByteCode->GetBufferPointer(), psByteCode->GetBufferSize() };
+  psoDesc.VS = { g_pBillboardVS, sizeof(g_pBillboardVS) };
+  psoDesc.PS = { g_pBillboardPS, sizeof(g_pBillboardPS) };
   psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 

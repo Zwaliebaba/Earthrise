@@ -28,6 +28,23 @@ namespace EarthRise
       return false;
     }
 
+    // Connect to the database.
+    if (!config.DbConnectionString.empty())
+    {
+      auto dbResult = m_database.Connect(config.DbConnectionString);
+      if (dbResult != DatabaseResult::Ok)
+      {
+        Telemetry::LogJson(LogLevel::Error, "Failed to connect to database");
+        Neuron::Server::ServerLog("ServerLoop: Database connection failed\n");
+        return false;
+      }
+      Neuron::Server::ServerLog("ServerLoop: Database connected\n");
+    }
+    else
+    {
+      Neuron::Server::ServerLog("ServerLoop: No DB connection string — running without database\n");
+    }
+
     // Start health-check endpoint.
     if (!m_healthCheck.Start(config.HealthPort))
     {
@@ -64,6 +81,7 @@ namespace EarthRise
     // Save universe delta state on shutdown.
     SaveUniverseDelta();
 
+    m_database.Disconnect();
     m_healthCheck.Stop();
     m_sessions.Shutdown();
     Telemetry::LogJson(LogLevel::Info, "Shutdown complete");

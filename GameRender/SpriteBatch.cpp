@@ -1,56 +1,12 @@
 #include "pch.h"
 #include "SpriteBatch.h"
+#include "CompiledShaders/SpriteVS.h"
+#include "CompiledShaders/SpritePS.h"
 
 using namespace Neuron::Graphics;
 
-namespace
-{
-  constexpr const char* c_spriteVS = R"(
-cbuffer SpriteConstants : register(b0)
-{
-    float4x4 Projection;
-};
-
-struct VSInput
-{
-    float2 Position : POSITION;
-    float4 Color    : COLOR;
-};
-
-struct VSOutput
-{
-    float4 Position : SV_Position;
-    float4 Color    : COLOR;
-};
-
-VSOutput main(VSInput input)
-{
-    VSOutput output;
-    output.Position = mul(float4(input.Position, 0.0, 1.0), Projection);
-    output.Color = input.Color;
-    return output;
-}
-)";
-
-  constexpr const char* c_spritePS = R"(
-struct PSInput
-{
-    float4 Position : SV_Position;
-    float4 Color    : COLOR;
-};
-
-float4 main(PSInput input) : SV_Target
-{
-    return input.Color;
-}
-)";
-}
-
 void SpriteBatch::Initialize()
 {
-  auto vsCode = PipelineHelpers::CompileShader(c_spriteVS, strlen(c_spriteVS), "main", "vs_5_1", "SpriteVS");
-  auto psCode = PipelineHelpers::CompileShader(c_spritePS, strlen(c_spritePS), "main", "ps_5_1", "SpritePS");
-
   CD3DX12_ROOT_PARAMETER rootParam;
   rootParam.InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
 
@@ -70,8 +26,8 @@ void SpriteBatch::Initialize()
   D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
   psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
   psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { vsCode->GetBufferPointer(), vsCode->GetBufferSize() };
-  psoDesc.PS = { psCode->GetBufferPointer(), psCode->GetBufferSize() };
+  psoDesc.VS = { g_pSpriteVS, sizeof(g_pSpriteVS) };
+  psoDesc.PS = { g_pSpritePS, sizeof(g_pSpritePS) };
   psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 

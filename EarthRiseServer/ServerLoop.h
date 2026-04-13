@@ -8,6 +8,7 @@
 #include "ServerConfig.h"
 #include "HealthCheck.h"
 #include "Telemetry.h"
+#include "SqlDatabase.h"
 
 namespace EarthRise
 {
@@ -47,6 +48,7 @@ namespace EarthRise
     Neuron::Server::BandwidthManager  m_bandwidth;
     StateBroadcaster                  m_broadcaster;
     HealthCheck                       m_healthCheck;
+    SqlDatabase                       m_database;
     ServerConfig                      m_config;
 
     float m_tickRate  = TICK_RATE;

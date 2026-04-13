@@ -36,8 +36,8 @@ namespace Neuron::Graphics
       if (IndexBuffer)
       {
         view.BufferLocation = IndexBuffer->GetGPUVirtualAddress();
-        view.SizeInBytes    = IndexCount * sizeof(uint16_t);
-        view.Format         = DXGI_FORMAT_R16_UINT;
+        view.SizeInBytes    = IndexCount * sizeof(uint32_t);
+        view.Format         = DXGI_FORMAT_R32_UINT;
       }
       return view;
     }

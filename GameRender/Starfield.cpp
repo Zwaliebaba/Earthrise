@@ -1,53 +1,13 @@
 #include "pch.h"
 #include "Starfield.h"
 #include "GpuResourceManager.h"
+#include "CompiledShaders/StarfieldVS.h"
+#include "CompiledShaders/StarfieldPS.h"
 
 using namespace Neuron::Graphics;
 
 namespace
 {
-  constexpr const char* c_starVS = R"(
-cbuffer FrameConstants : register(b0)
-{
-    float4x4 ViewProjection;
-};
-
-struct VSInput
-{
-    float3 Direction  : POSITION;
-    float  Brightness : BRIGHTNESS;
-};
-
-struct VSOutput
-{
-    float4 Position   : SV_Position;
-    float  Brightness : BRIGHTNESS;
-};
-
-VSOutput main(VSInput input)
-{
-    VSOutput output;
-    // Place star on a large sphere (far but within draw distance)
-    float3 worldPos = input.Direction * 19000.0;
-    output.Position = mul(float4(worldPos, 1.0), ViewProjection);
-    output.Brightness = input.Brightness;
-    return output;
-}
-)";
-
-  constexpr const char* c_starPS = R"(
-struct PSInput
-{
-    float4 Position   : SV_Position;
-    float  Brightness : BRIGHTNESS;
-};
-
-float4 main(PSInput input) : SV_Target
-{
-    return float4(input.Brightness, input.Brightness, input.Brightness * 0.95, 1.0);
-}
-)";
-
   // Simple deterministic pseudo-random for star placement
   float HashToFloat(uint32_t seed)
   {
@@ -92,12 +52,6 @@ void Starfield::Initialize(uint32_t starCount)
   m_rootSignature = PipelineHelpers::CreateRootSignature(rootSigDesc);
   SetName(m_rootSignature.get(), L"StarfieldRootSig");
 
-  // Compile shaders
-  auto vsByteCode = PipelineHelpers::CompileShader(
-    c_starVS, strlen(c_starVS), "main", "vs_5_1", "StarfieldVS");
-  auto psByteCode = PipelineHelpers::CompileShader(
-    c_starPS, strlen(c_starPS), "main", "ps_5_1", "StarfieldPS");
-
   // Input layout
   D3D12_INPUT_ELEMENT_DESC inputLayout[] =
   {
@@ -109,8 +63,8 @@ void Starfield::Initialize(uint32_t starCount)
   D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
   psoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
   psoDesc.pRootSignature = m_rootSignature.get();
-  psoDesc.VS = { vsByteCode->GetBufferPointer(), vsByteCode->GetBufferSize() };
-  psoDesc.PS = { psByteCode->GetBufferPointer(), psByteCode->GetBufferSize() };
+  psoDesc.VS = { g_pStarfieldVS, sizeof(g_pStarfieldVS) };
+  psoDesc.PS = { g_pStarfieldPS, sizeof(g_pStarfieldPS) };
   psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
